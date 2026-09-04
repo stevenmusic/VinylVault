@@ -1,0 +1,21 @@
+{
+  "name": "vinylvault-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Capacitor wrapper：把 VinylVault 網頁包成 iOS / Android App。",
+  "scripts": {
+    "copy:web": "node scripts/sync-web.mjs",
+    "init:ios": "npm run copy:web && npx cap add ios && npx cap sync ios",
+    "sync": "npm run copy:web && npx cap sync",
+    "open:ios": "npx cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/ios": "^6.2.0",
+    "@capacitor/status-bar": "^6.0.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0"
+  }
+}

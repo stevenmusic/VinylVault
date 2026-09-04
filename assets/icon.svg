@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="bg" cx="30%" cy="18%" r="95%">
+      <stop offset="0%" stop-color="#1B1710"/>
+      <stop offset="60%" stop-color="#0C0A07"/>
+      <stop offset="100%" stop-color="#070603"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#E4C77E"/>
+      <stop offset="45%" stop-color="#C9A24B"/>
+      <stop offset="100%" stop-color="#8A6E33"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0%" stop-color="#F4ECDA" stop-opacity="0.10"/>
+      <stop offset="45%" stop-color="#F4ECDA" stop-opacity="0.02"/>
+      <stop offset="100%" stop-color="#F4ECDA" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+
+  <!-- 唱片本體 -->
+  <circle cx="512" cy="512" r="366" fill="#100D09" stroke="url(#gold)" stroke-width="6"/>
+
+  <!-- 溝槽 -->
+  <g fill="none" stroke="#C9A24B" stroke-opacity="0.20" stroke-width="3">
+    <circle cx="512" cy="512" r="330"/>
+    <circle cx="512" cy="512" r="300"/>
+    <circle cx="512" cy="512" r="270"/>
+    <circle cx="512" cy="512" r="240"/>
+    <circle cx="512" cy="512" r="210"/>
+  </g>
+
+  <!-- 高光 -->
+  <circle cx="512" cy="512" r="366" fill="url(#sheen)"/>
+
+  <!-- 標籤 -->
+  <circle cx="512" cy="512" r="150" fill="url(#gold)"/>
+  <circle cx="512" cy="512" r="150" fill="none" stroke="#F4ECDA" stroke-opacity="0.25" stroke-width="3"/>
+  <text x="512" y="486" font-family="Georgia, 'Times New Roman', serif" font-size="66" font-weight="700"
+        fill="#1B1710" text-anchor="middle" letter-spacing="4">VV</text>
+  <circle cx="512" cy="560" r="26" fill="#0C0A07"/>
+</svg>

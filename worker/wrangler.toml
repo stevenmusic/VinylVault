@@ -1,0 +1,19 @@
+name = "vinylvault-api"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# 這裡不要寫 Turso 的 URL / Token。
+# 部署後用指令設成 Secret：
+#   npx wrangler secret put TURSO_DATABASE_URL
+#   npx wrangler secret put TURSO_AUTH_TOKEN
+#   npx wrangler secret put WRITE_TOKEN        # 選用：保護寫入端點
+#
+# 本機開發請用 worker/.dev.vars（已被 .gitignore 忽略）。
+
+[vars]
+# 允許呼叫這個 API 的來源（逗號分隔）。留空或整行刪掉 = 允許所有來源。
+# 上線後建議填自己的 GitHub Pages 網址 + App WebView 來源。
+ALLOWED_ORIGINS = ""
+
+[observability]
+enabled = true

@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0C0A07">
+<meta name="description" content="VinylVault — 黑膠唱片版本收藏管理">
+<title>VinylVault</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%230C0A07'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%23C9A24B' stroke-width='1'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%23C9A24B'/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --ink:#0C0A07;
+  --ink-2:#131009;
+  --ink-3:#1B1710;
+  --cream:#F4ECDA;
+  --gold:#C9A24B;
+  --gold-dim:#8A6E33;
+  --line:rgba(201,162,75,.22);
+  --muted:rgba(244,236,218,.58);
+  --danger:#C1573F;
+  --ok:#6F9A63;
+  --radius:14px;
+  --shadow:0 18px 44px rgba(0,0,0,.55);
+  --serif:"Cormorant Garamond","Noto Serif TC",Georgia,"Times New Roman",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC","Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--ink);
+  color:var(--cream);
+  font-family:var(--sans);
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+  padding-bottom:env(safe-area-inset-bottom);
+  min-height:100vh;
+}
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(900px 500px at 12% -8%, rgba(201,162,75,.13), transparent 62%),
+    radial-gradient(700px 420px at 100% 4%, rgba(201,162,75,.07), transparent 60%);
+}
+a{color:var(--gold);text-decoration:none}
+button{font:inherit;color:inherit;cursor:pointer}
+img{max-width:100%;display:block}
+
+/* ---------- layout ---------- */
+.wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:0 18px 96px}
+
+header.top{
+  position:sticky;top:0;z-index:30;
+  background:rgba(12,10,7,.86);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);
+  padding-top:env(safe-area-inset-top);
+}
+.top-inner{max-width:1180px;margin:0 auto;padding:12px 18px;display:flex;align-items:center;gap:14px}
+.brand{display:flex;align-items:center;gap:10px;cursor:pointer;background:none;border:0;padding:0}
+.brand .disc{
+  width:30px;height:30px;border-radius:50%;flex:none;
+  background:radial-gradient(circle at 50% 50%, var(--gold) 0 15%, var(--ink-3) 16% 100%);
+  box-shadow:0 0 0 1px var(--line), inset 0 0 0 4px rgba(201,162,75,.16);
+}
+.brand h1{
+  font-family:var(--serif);font-size:22px;letter-spacing:.16em;margin:0;font-weight:600;
+  text-transform:uppercase;white-space:nowrap;
+}
+.brand h1 span{color:var(--gold)}
+.top-spacer{flex:1}
+.stat-pill{
+  display:none;gap:14px;font-size:12px;letter-spacing:.08em;color:var(--muted);
+  border:1px solid var(--line);border-radius:999px;padding:6px 14px;white-space:nowrap;
+}
+.stat-pill b{color:var(--gold);font-weight:600}
+@media(min-width:760px){.stat-pill{display:flex}}
+.icon-btn{
+  width:38px;height:38px;flex:none;border-radius:50%;border:1px solid var(--line);
+  background:transparent;display:grid;place-items:center;font-size:16px;color:var(--cream);
+  transition:.16s;
+}
+.icon-btn:hover{border-color:var(--gold);color:var(--gold)}
+
+.crumbs{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12.5px;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:22px 0 6px}
+.crumbs button{background:none;border:0;padding:0;color:var(--muted);letter-spacing:inherit}
+.crumbs button:hover{color:var(--gold)}
+.crumbs .sep{color:var(--gold-dim)}
+.crumbs .cur{color:var(--cream)}
+
+.page-head{display:flex;flex-wrap:wrap;align-items:flex-end;gap:16px;margin:6px 0 22px}
+.page-head .titles{flex:1;min-width:220px}
+.eyebrow{font-size:11.5px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold);margin:0 0 6px}
+h2.title{font-family:var(--serif);font-size:clamp(30px,6vw,46px);line-height:1.06;margin:0;font-weight:600}
+.sub{color:var(--muted);font-size:13.5px;margin-top:8px}
+.rule{height:1px;background:linear-gradient(90deg,var(--gold),transparent);margin:0 0 22px;opacity:.55}
+
+/* ---------- buttons ---------- */
+.btn{
+  border:1px solid var(--line);background:transparent;color:var(--cream);
+  border-radius:999px;padding:9px 18px;font-size:13.5px;letter-spacing:.04em;transition:.16s;
+  display:inline-flex;align-items:center;gap:7px;white-space:nowrap;
+}
+.btn:hover{border-color:var(--gold);color:var(--gold)}
+.btn.primary{background:var(--gold);border-color:var(--gold);color:#171208;font-weight:600}
+.btn.primary:hover{background:#d8b25e;color:#171208}
+.btn.ghost{border-color:transparent;color:var(--muted)}
+.btn.ghost:hover{color:var(--gold)}
+.btn.danger:hover{border-color:var(--danger);color:var(--danger)}
+.btn.sm{padding:6px 13px;font-size:12.5px}
+
+/* ---------- toolbar ---------- */
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:22px}
+.search{position:relative;flex:1;min-width:190px}
+.search input{width:100%;padding:10px 14px 10px 36px}
+.search::before{content:"⌕";position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--gold);font-size:17px}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{
+  border:1px solid var(--line);background:transparent;color:var(--muted);
+  border-radius:999px;padding:7px 15px;font-size:12.5px;letter-spacing:.05em;transition:.16s;
+}
+.chip:hover{color:var(--gold);border-color:var(--gold)}
+.chip.on{background:rgba(201,162,75,.14);border-color:var(--gold);color:var(--gold)}
+
+input,select,textarea{
+  background:var(--ink-2);border:1px solid var(--line);color:var(--cream);
+  border-radius:10px;padding:10px 13px;font:inherit;font-size:14px;width:100%;
+  transition:.16s;appearance:none;
+}
+input:focus,select,textarea:focus{outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,162,75,.12)}
+select{background-image:linear-gradient(45deg,transparent 50%,var(--gold) 50%),linear-gradient(135deg,var(--gold) 50%,transparent 50%);
+  background-position:calc(100% - 17px) 50%,calc(100% - 12px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:34px}
+textarea{min-height:76px;resize:vertical}
+label.fld{display:block;margin-bottom:14px}
+label.fld > span{display:block;font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+
+/* ---------- grids ---------- */
+.grid{display:grid;gap:16px}
+.grid.artists{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}
+.grid.albums{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+.grid.versions{grid-template-columns:repeat(auto-fill,minmax(255px,1fr))}
+
+.card{
+  position:relative;background:linear-gradient(180deg,var(--ink-2),var(--ink));
+  border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;
+  transition:.2s;display:flex;flex-direction:column;text-align:left;width:100%;padding:0;
+}
+.card:hover{border-color:var(--gold);transform:translateY(-2px);box-shadow:var(--shadow)}
+.card .body{padding:14px 15px 15px;display:flex;flex-direction:column;gap:6px;flex:1}
+.card h3{font-family:var(--serif);font-size:19px;margin:0;font-weight:600;line-height:1.2}
+.card .meta{font-size:12.5px;color:var(--muted)}
+
+.cover{position:relative;aspect-ratio:1/1;background:var(--ink-3);overflow:hidden}
+.cover img{width:100%;height:100%;object-fit:cover}
+.cover.ph{display:grid;place-items:center;
+  background:radial-gradient(circle at 50% 50%, rgba(201,162,75,.16) 0 18%, var(--ink-3) 19% 100%)}
+.cover.ph::after{content:"";width:16%;aspect-ratio:1;border-radius:50%;background:var(--gold);opacity:.55}
+
+.artist-card .cover{aspect-ratio:4/3}
+.count-row{display:flex;gap:12px;font-size:11.5px;letter-spacing:.06em;color:var(--muted);margin-top:2px}
+.count-row b{color:var(--gold);font-weight:600}
+
+/* ---------- version card ---------- */
+.vcard .badges{position:absolute;top:9px;left:9px;display:flex;flex-wrap:wrap;gap:5px;max-width:calc(100% - 18px)}
+.badge{
+  font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:600;
+  padding:4px 8px;border-radius:4px;background:rgba(12,10,7,.82);
+  border:1px solid var(--line);color:var(--gold);backdrop-filter:blur(4px);
+}
+.badge.limited{background:var(--gold);color:#171208;border-color:var(--gold)}
+.badge.excl{border-color:var(--cream);color:var(--cream)}
+.swatch{
+  position:absolute;bottom:9px;right:9px;width:28px;height:28px;border-radius:50%;
+  border:2px solid rgba(244,236,218,.75);box-shadow:0 3px 12px rgba(0,0,0,.6);
+}
+.vcard .rows{display:flex;flex-direction:column;gap:3px;font-size:12.5px;color:var(--muted);margin-top:2px}
+.vcard .rows div{display:flex;justify-content:space-between;gap:10px}
+.vcard .rows span:last-child{color:var(--cream);text-align:right}
+.price{font-family:var(--serif);font-size:20px;color:var(--gold);font-weight:600}
+.actions{display:flex;gap:7px;margin-top:12px;flex-wrap:wrap;align-items:center}
+.toggle{
+  border:1px solid var(--line);background:transparent;border-radius:999px;
+  padding:6px 12px;font-size:12px;letter-spacing:.05em;color:var(--muted);transition:.16s;
+}
+.toggle:hover{border-color:var(--gold);color:var(--gold)}
+.toggle.want.on{background:rgba(193,87,63,.18);border-color:var(--danger);color:#E0836D}
+.toggle.owned.on{background:rgba(111,154,99,.18);border-color:var(--ok);color:#9BC48F}
+.card-menu{margin-left:auto;display:flex;gap:4px}
+.mini{background:none;border:0;color:var(--muted);font-size:13px;padding:5px 6px;border-radius:6px;transition:.16s}
+.mini:hover{color:var(--gold);background:rgba(201,162,75,.1)}
+.mini.del:hover{color:var(--danger);background:rgba(193,87,63,.1)}
+
+/* ---------- states ---------- */
+.empty{
+  border:1px dashed var(--line);border-radius:var(--radius);padding:52px 24px;text-align:center;color:var(--muted);
+}
+.empty h3{font-family:var(--serif);font-size:24px;color:var(--cream);margin:0 0 8px;font-weight:600}
+.empty p{margin:0 auto 18px;max-width:400px;font-size:14px}
+.skel{border:1px solid var(--line);border-radius:var(--radius);height:230px;
+  background:linear-gradient(100deg,var(--ink-2) 30%,rgba(201,162,75,.07) 50%,var(--ink-2) 70%);
+  background-size:220% 100%;animation:sh 1.3s infinite}
+@keyframes sh{from{background-position:150% 0}to{background-position:-50% 0}}
+.err{border:1px solid rgba(193,87,63,.5);background:rgba(193,87,63,.09);border-radius:var(--radius);
+  padding:20px;color:#E9A996}
+.err b{color:#F4C7B8;display:block;margin-bottom:5px}
+.err code{font-size:12px;word-break:break-all;opacity:.85}
+
+/* ---------- modal ---------- */
+.mask{position:fixed;inset:0;background:rgba(4,3,2,.78);backdrop-filter:blur(4px);
+  z-index:60;display:flex;align-items:flex-end;justify-content:center;padding:0}
+@media(min-width:640px){.mask{align-items:center;padding:24px}}
+.modal{
+  background:var(--ink-2);border:1px solid var(--line);border-radius:18px 18px 0 0;
+  width:100%;max-width:560px;max-height:92vh;overflow-y:auto;box-shadow:var(--shadow);
+  padding:22px 20px calc(22px + env(safe-area-inset-bottom));
+}
+@media(min-width:640px){.modal{border-radius:18px;padding:26px}}
+.modal h3{font-family:var(--serif);font-size:25px;margin:0 0 4px;font-weight:600}
+.modal .hint{color:var(--muted);font-size:13px;margin:0 0 20px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+@media(max-width:520px){.two{grid-template-columns:1fr}}
+.checks{display:flex;flex-wrap:wrap;gap:18px;margin:2px 0 16px}
+.checks label{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--muted);cursor:pointer}
+.checks input{width:17px;height:17px;accent-color:var(--gold);flex:none;padding:0}
+.modal-foot{display:flex;gap:10px;justify-content:flex-end;margin-top:8px;flex-wrap:wrap}
+
+/* ---------- toast / fab ---------- */
+#toasts{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(24px + env(safe-area-inset-bottom));
+  z-index:80;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none;width:calc(100% - 32px);max-width:420px}
+.toast{background:var(--ink-3);border:1px solid var(--gold);color:var(--cream);border-radius:10px;
+  padding:11px 17px;font-size:13.5px;box-shadow:var(--shadow);animation:up .22s ease-out}
+.toast.bad{border-color:var(--danger);color:#EBB4A4}
+@keyframes up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.fab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:40;
+  width:54px;height:54px;border-radius:50%;background:var(--gold);color:#171208;border:0;
+  font-size:26px;line-height:1;display:grid;place-items:center;box-shadow:var(--shadow)}
+.fab:hover{background:#d8b25e}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <button class="brand" id="brand" aria-label="回首頁">
+      <span class="disc"></span>
+      <h1>Vinyl<span>Vault</span></h1>
+    </button>
+    <div class="top-spacer"></div>
+    <div class="stat-pill" id="stats" hidden></div>
+    <button class="icon-btn" id="settingsBtn" title="設定" aria-label="設定">⚙</button>
+  </div>
+</header>
+
+<main class="wrap" id="app"></main>
+<button class="fab" id="fab" hidden title="新增">+</button>
+<div id="toasts"></div>
+<div id="modalRoot"></div>
+
+<script src="config.js"></script>
+<script>
+(() => {
+'use strict';
+
+/* ========================================================================== */
+/* 設定                                                                        */
+/* ========================================================================== */
+const CFG = window.VINYLVAULT_CONFIG || {};
+const LS = { base: 'vv.apiBase', token: 'vv.writeToken' };
+
+const qp = new URLSearchParams(location.search);
+if (qp.get('api')) localStorage.setItem(LS.base, qp.get('api').replace(/\/+$/, ''));
+
+const getBase  = () => (localStorage.getItem(LS.base) || CFG.apiBase || '').replace(/\/+$/, '');
+const getToken = () => localStorage.getItem(LS.token) || CFG.writeToken || '';
+
+/* ========================================================================== */
+/* API                                                                         */
+/* ========================================================================== */
+async function api(path, { method = 'GET', body } = {}) {
+  const base = getBase();
+  if (!base) throw new Error('尚未設定 API 網址');
+  const headers = {};
+  if (body) headers['Content-Type'] = 'application/json';
+  const token = getToken();
+  if (token && method !== 'GET') headers['Authorization'] = 'Bearer ' + token;
+
+  let res;
+  try {
+    res = await fetch(base + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  } catch (e) {
+    throw new Error('連線失敗，請確認 API 網址與 Worker 的 CORS 設定（' + e.message + '）');
+  }
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { /* 非 JSON */ }
+  if (!res.ok) throw new Error((data && data.error) || ('HTTP ' + res.status + ' ' + text.slice(0, 160)));
+  return data;
+}
+
+const API = {
+  stats:          ()             => api('/stats'),
+  artists:        (q)            => api('/artists' + (q ? '?q=' + encodeURIComponent(q) : '')),
+  artist:         (id)           => api('/artists/' + id),
+  createArtist:   (b)            => api('/artists', { method: 'POST', body: b }),
+  updateArtist:   (id, b)        => api('/artists/' + id, { method: 'PATCH', body: b }),
+  deleteArtist:   (id)           => api('/artists/' + id, { method: 'DELETE' }),
+  albums:         (artistId)     => api('/albums?artist_id=' + artistId),
+  album:          (id)           => api('/albums/' + id),
+  createAlbum:    (b)            => api('/albums', { method: 'POST', body: b }),
+  updateAlbum:    (id, b)        => api('/albums/' + id, { method: 'PATCH', body: b }),
+  deleteAlbum:    (id)           => api('/albums/' + id, { method: 'DELETE' }),
+  versions:       (qs)           => api('/versions' + (qs ? '?' + qs : '')),
+  createVersion:  (b)            => api('/versions', { method: 'POST', body: b }),
+  updateVersion:  (id, b)        => api('/versions/' + id, { method: 'PATCH', body: b }),
+  deleteVersion:  (id)           => api('/versions/' + id, { method: 'DELETE' }),
+};
+
+/* ========================================================================== */
+/* 小工具                                                                      */
+/* ========================================================================== */
+const $ = (sel, root = document) => root.querySelector(sel);
+const app = $('#app'), modalRoot = $('#modalRoot'), fab = $('#fab');
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+const attr = (s) => esc(s);
+
+function safeUrl(u) {
+  const s = String(u ?? '').trim();
+  return /^https?:\/\//i.test(s) ? s : '';
+}
+
+function money(price, currency) {
+  if (price === null || price === undefined || price === '') return '';
+  const cur = currency || 'USD';
+  try {
+    return new Intl.NumberFormat('zh-Hant', { style: 'currency', currency: cur, maximumFractionDigits: 2 }).format(price);
+  } catch { return cur + ' ' + price; }
+}
+
+function toast(msg, bad = false) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (bad ? ' bad' : '');
+  el.textContent = msg;
+  $('#toasts').appendChild(el);
+  setTimeout(() => el.remove(), bad ? 4200 : 2400);
+}
+
+function coverHtml(url, extra = '') {
+  const u = safeUrl(url);
+  return u
+    ? '<div class="cover">' + extra + '<img loading="lazy" src="' + attr(u) + '" alt="" onerror="this.parentNode.classList.add(\'ph\');this.remove()"></div>'
+    : '<div class="cover ph">' + extra + '</div>';
+}
+
+const go = (hash) => { location.hash = hash; };
+
+/* ========================================================================== */
+/* 表單 modal                                                                  */
+/* ========================================================================== */
+function openModal(html) {
+  const mask = document.createElement('div');
+  mask.className = 'mask';
+  mask.innerHTML = '<div class="modal" role="dialog" aria-modal="true">' + html + '</div>';
+  mask.addEventListener('mousedown', (e) => { if (e.target === mask) close(); });
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  function close() { document.removeEventListener('keydown', onKey); mask.remove(); }
+  modalRoot.appendChild(mask);
+  const first = mask.querySelector('input,select,textarea');
+  if (first) setTimeout(() => first.focus(), 40);
+  return { el: mask, close };
+}
+
+/**
+ * 依欄位定義產生表單。
+ * fields: [{ key, label, type, options?, placeholder?, required?, half? }]
+ */
+function formModal({ title, hint, fields, values = {}, submitLabel = '儲存', onSubmit }) {
+  const render = (f) => {
+    const v = values[f.key];
+    const id = 'f_' + f.key;
+    if (f.type === 'check') return '';
+    let control;
+    if (f.type === 'textarea') {
+      control = '<textarea id="' + id + '" name="' + f.key + '" placeholder="' + attr(f.placeholder || '') + '">' + esc(v ?? '') + '</textarea>';
+    } else if (f.type === 'select') {
+      control = '<select id="' + id + '" name="' + f.key + '">' +
+        f.options.map((o) => '<option value="' + attr(o.value) + '"' +
+          (String(v ?? '') === String(o.value) ? ' selected' : '') + '>' + esc(o.label) + '</option>').join('') +
+        '</select>';
+    } else {
+      control = '<input id="' + id + '" name="' + f.key + '" type="' + (f.type || 'text') + '"' +
+        (f.type === 'number' ? ' step="any"' : '') +
+        (f.required ? ' required' : '') +
+        ' placeholder="' + attr(f.placeholder || '') + '" value="' + attr(v ?? '') + '">';
+    }
+    return '<label class="fld"><span>' + esc(f.label) + (f.required ? ' *' : '') + '</span>' + control + '</label>';
+  };
+
+  const checks = fields.filter((f) => f.type === 'check');
+  const singles = fields.filter((f) => f.type !== 'check' && !f.half);
+  const halves = fields.filter((f) => f.type !== 'check' && f.half);
+
+  const html =
+    '<h3>' + esc(title) + '</h3>' +
+    (hint ? '<p class="hint">' + esc(hint) + '</p>' : '<p class="hint"></p>') +
+    '<form id="vvForm" novalidate>' +
+      singles.map(render).join('') +
+      (halves.length ? '<div class="two">' + halves.map(render).join('') + '</div>' : '') +
+      (checks.length ? '<div class="checks">' + checks.map((f) =>
+        '<label><input type="checkbox" name="' + f.key + '"' + (values[f.key] ? ' checked' : '') + '>' + esc(f.label) + '</label>').join('') + '</div>' : '') +
+      '<div class="modal-foot">' +
+        '<button type="button" class="btn ghost" data-close>取消</button>' +
+        '<button type="submit" class="btn primary">' + esc(submitLabel) + '</button>' +
+      '</div>' +
+    '</form>';
+
+  const m = openModal(html);
+  m.el.querySelector('[data-close]').onclick = m.close;
+  const form = m.el.querySelector('#vvForm');
+
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const out = {};
+    for (const f of fields) {
+      const input = form.elements[f.key];
+      if (!input) continue;
+      if (f.type === 'check') { out[f.key] = input.checked ? 1 : 0; continue; }
+      const raw = String(input.value ?? '').trim();
+      if (f.required && !raw) { toast(f.label + ' 為必填', true); input.focus(); return; }
+      out[f.key] = raw === '' ? null : (f.type === 'number' ? Number(raw) : raw);
+    }
+    const btn = form.querySelector('button[type=submit]');
+    btn.disabled = true; btn.textContent = '處理中…';
+    try {
+      await onSubmit(out);
+      m.close();
+    } catch (err) {
+      toast(err.message, true);
+      btn.disabled = false; btn.textContent = submitLabel;
+    }
+  };
+  return m;
+}
+
+function confirmModal(text, onYes) {
+  const m = openModal(
+    '<h3>確認刪除</h3><p class="hint">' + esc(text) + '</p>' +
+    '<div class="modal-foot"><button class="btn ghost" data-no>取消</button>' +
+    '<button class="btn danger" data-yes style="border-color:var(--danger);color:#E0836D">刪除</button></div>');
+  m.el.querySelector('[data-no]').onclick = m.close;
+  m.el.querySelector('[data-yes]').onclick = async () => {
+    try { await onYes(); m.close(); } catch (e) { toast(e.message, true); }
+  };
+}
+
+/* ========================================================================== */
+/* 設定畫面                                                                    */
+/* ========================================================================== */
+function openSettings() {
+  const m = openModal(
+    '<h3>連線設定</h3>' +
+    '<p class="hint">填入你部署好的 Cloudflare Worker 網址，資料會存在雲端 Turso，手機與電腦共用同一份。</p>' +
+    '<label class="fld"><span>API 網址（Worker）</span>' +
+      '<input id="sBase" placeholder="https://vinylvault-api.xxx.workers.dev" value="' + attr(getBase()) + '"></label>' +
+    '<label class="fld"><span>寫入權杖（選填，對應 Worker 的 WRITE_TOKEN）</span>' +
+      '<input id="sToken" type="password" placeholder="留空代表 Worker 沒設定保護" value="' + attr(getToken()) + '"></label>' +
+    '<div id="sTest" class="hint"></div>' +
+    '<div class="modal-foot">' +
+      '<button class="btn ghost" data-close>取消</button>' +
+      '<button class="btn" id="sPing">測試連線</button>' +
+      '<button class="btn primary" id="sSave">儲存</button>' +
+    '</div>');
+
+  const baseEl = m.el.querySelector('#sBase');
+  const tokEl = m.el.querySelector('#sToken');
+  const out = m.el.querySelector('#sTest');
+  m.el.querySelector('[data-close]').onclick = m.close;
+
+  m.el.querySelector('#sPing').onclick = async () => {
+    const url = baseEl.value.trim().replace(/\/+$/, '');
+    out.textContent = '測試中…';
+    try {
+      const r = await fetch(url + '/health');
+      const j = await r.json();
+      out.innerHTML = j.ok
+        ? '<span style="color:var(--ok)">✓ 連線成功，資料庫正常</span>'
+        : '<span style="color:var(--danger)">✕ Worker 有回應，但資料庫異常：' + esc(j.db || '未設定 Turso 環境變數') + '</span>';
+    } catch (e) {
+      out.innerHTML = '<span style="color:var(--danger)">✕ 連不上：' + esc(e.message) + '</span>';
+    }
+  };
+
+  m.el.querySelector('#sSave').onclick = () => {
+    localStorage.setItem(LS.base, baseEl.value.trim().replace(/\/+$/, ''));
+    localStorage.setItem(LS.token, tokEl.value.trim());
+    m.close();
+    toast('設定已儲存');
+    render();
+  };
+}
+$('#settingsBtn').onclick = openSettings;
+$('#brand').onclick = () => go('#/');
+
+/* ========================================================================== */
+/* 畫面片段                                                                    */
+/* ========================================================================== */
+const skeletons = (n, cls) =>
+  '<div class="grid ' + cls + '">' + Array.from({ length: n }, () => '<div class="skel"></div>').join('') + '</div>';
+
+function crumbs(items) {
+  return '<nav class="crumbs">' + items.map((it, i) =>
+    (i ? '<span class="sep">/</span>' : '') +
+    (it.hash ? '<button data-go="' + attr(it.hash) + '">' + esc(it.label) + '</button>'
+             : '<span class="cur">' + esc(it.label) + '</span>')).join('') + '</nav>';
+}
+
+function pageHead(eyebrow, title, sub, actionsHtml = '') {
+  return '<div class="page-head"><div class="titles">' +
+    (eyebrow ? '<p class="eyebrow">' + esc(eyebrow) + '</p>' : '') +
+    '<h2 class="title">' + esc(title) + '</h2>' +
+    (sub ? '<div class="sub">' + esc(sub) + '</div>' : '') +
+    '</div>' + (actionsHtml ? '<div style="display:flex;gap:8px;flex-wrap:wrap">' + actionsHtml + '</div>' : '') +
+    '</div><div class="rule"></div>';
+}
+
+const emptyState = (title, text, btn) =>
+  '<div class="empty"><h3>' + esc(title) + '</h3><p>' + esc(text) + '</p>' + (btn || '') + '</div>';
+
+function errorState(err) {
+  return '<div class="err"><b>載入失敗</b><code>' + esc(err.message) + '</code>' +
+    '<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">' +
+    '<button class="btn sm" data-retry>重試</button>' +
+    '<button class="btn sm" data-settings>連線設定</button></div></div>';
+}
+
+function setupScreen() {
+  return pageHead('Welcome', 'VinylVault', '黑膠版本收藏庫 — 歌手 · 專輯 · 版本三層管理') +
+    emptyState('先設定 API 網址',
+      '這個 App 透過你自己的 Cloudflare Worker 讀寫 Turso 資料庫。部署完 Worker 後，把網址填進來就能開始使用。',
+      '<button class="btn primary" data-settings>開始設定</button>');
+}
+
+/* ========================================================================== */
+/* 表單定義                                                                    */
+/* ========================================================================== */
+const artistFields = [
+  { key: 'name', label: '歌手 / 團體名稱', required: true, placeholder: '例：Radiohead' },
+  { key: 'sort_name', label: '排序名稱', half: true, placeholder: '例：Radiohead' },
+  { key: 'country', label: '國家', half: true, placeholder: '例：UK' },
+  { key: 'image_url', label: '圖片網址', placeholder: 'https://…' },
+  { key: 'notes', label: '備註', type: 'textarea' },
+];
+
+const albumFields = [
+  { key: 'title', label: '專輯名稱', required: true, placeholder: '例：In Rainbows' },
+  { key: 'release_year', label: '發行年份', type: 'number', half: true, placeholder: '2007' },
+  { key: 'label', label: '廠牌', half: true, placeholder: '例：XL Recordings' },
+  { key: 'cover_url', label: '封面網址', placeholder: 'https://…' },
+  { key: 'notes', label: '備註', type: 'textarea' },
+];
+
+const versionFields = [
+  { key: 'name', label: '版本名稱', required: true, placeholder: '例：Gold Nugget LP' },
+  { key: 'cover_url', label: '封面網址', placeholder: 'https://…' },
+  { key: 'color', label: '唱片顏色', half: true, placeholder: '例：Translucent Gold' },
+  { key: 'color_hex', label: '顏色色票', type: 'color', half: true },
+  { key: 'region', label: '地區', half: true, placeholder: '例：US / UK / JP / TW' },
+  { key: 'release_date', label: '發行日期', type: 'date', half: true },
+  { key: 'edition_size', label: '限量張數', type: 'number', half: true, placeholder: '5000' },
+  { key: 'exclusive_to', label: '獨佔通路', half: true, placeholder: '例：Target' },
+  { key: 'price', label: '售價', type: 'number', half: true, placeholder: '34.99' },
+  { key: 'currency', label: '幣別', half: true, placeholder: 'USD' },
+  { key: 'buy_url', label: '購買連結', placeholder: 'https://…' },
+  { key: 'notes', label: '備註', type: 'textarea' },
+  { key: 'is_limited', label: 'Limited 限量', type: 'check' },
+  { key: 'is_exclusive', label: 'Exclusive 獨佔', type: 'check' },
+  { key: 'want', label: '❤ Want 想要', type: 'check' },
+  { key: 'owned', label: '✓ Owned 已擁有', type: 'check' },
+];
+
+/* ========================================================================== */
+/* 路由                                                                        */
+/* ========================================================================== */
+function parseRoute() {
+  const h = location.hash.replace(/^#\/?/, '');
+  const [name, id] = h.split('/');
+  if (name === 'artist' && id) return { view: 'artist', id: Number(id) };
+  if (name === 'album' && id)  return { view: 'album', id: Number(id) };
+  if (name === 'collection')   return { view: 'collection' };
+  return { view: 'home' };
+}
+
+let state = { filter: 'all', region: '', q: '' };
+
+async function render() {
+  const route = parseRoute();
+  fab.hidden = true;
+  if (!getBase()) { app.innerHTML = setupScreen(); bind(); return; }
+  refreshStats();
+  try {
+    if (route.view === 'artist')          await viewArtist(route.id);
+    else if (route.view === 'album')      await viewAlbum(route.id);
+    else if (route.view === 'collection') await viewCollection();
+    else                                  await viewHome();
+  } catch (err) {
+    app.innerHTML = errorState(err);
+  }
+  bind();
+}
+
+async function refreshStats() {
+  const el = $('#stats');
+  try {
+    const s = await API.stats();
+    el.innerHTML =
+      '<span>歌手 <b>' + s.artists + '</b></span>' +
+      '<span>專輯 <b>' + s.albums + '</b></span>' +
+      '<span>版本 <b>' + s.versions + '</b></span>' +
+      '<span>❤ <b>' + s.want + '</b></span>' +
+      '<span>✓ <b>' + s.owned + '</b></span>';
+    el.hidden = false;
+  } catch { el.hidden = true; }
+}
+
+/* ---------- 首頁：歌手列表 ---------- */
+async function viewHome() {
+  app.innerHTML = crumbs([{ label: '歌手' }]) +
+    pageHead('Collection', '歌手', '點進歌手查看專輯與版本',
+      '<button class="btn" data-go="#/collection">我的收藏</button>' +
+      '<button class="btn primary" data-new-artist>+ 新增歌手</button>') +
+    '<div class="toolbar"><div class="search"><input id="q" placeholder="搜尋歌手…" value="' + attr(state.q) + '"></div></div>' +
+    '<div id="list">' + skeletons(8, 'artists') + '</div>';
+  bind();
+
+  const artists = await API.artists(state.q);
+  const list = $('#list');
+  if (!artists.length) {
+    list.innerHTML = emptyState(state.q ? '找不到符合的歌手' : '收藏庫還是空的',
+      state.q ? '換個關鍵字試試。' : '從新增第一位歌手開始，接著加入專輯與各種黑膠版本。',
+      '<button class="btn primary" data-new-artist>+ 新增歌手</button>');
+  } else {
+    list.innerHTML = '<div class="grid artists">' + artists.map((a) =>
+      '<div class="card artist-card">' +
+        '<button style="all:unset;cursor:pointer;display:block" data-go="#/artist/' + a.id + '">' +
+          coverHtml(a.image_url) + '</button>' +
+        '<div class="body">' +
+          '<h3><button style="all:unset;cursor:pointer" data-go="#/artist/' + a.id + '">' + esc(a.name) + '</button></h3>' +
+          (a.country ? '<div class="meta">' + esc(a.country) + '</div>' : '') +
+          '<div class="count-row"><span><b>' + a.album_count + '</b> 專輯</span>' +
+            '<span><b>' + a.version_count + '</b> 版本</span>' +
+            '<span><b>' + a.owned_count + '</b> 已收</span></div>' +
+          '<div class="actions"><div class="card-menu">' +
+            '<button class="mini" data-edit-artist=\'' + attr(JSON.stringify(a)) + '\' title="編輯">✎</button>' +
+            '<button class="mini del" data-del-artist="' + a.id + '" data-name="' + attr(a.name) + '" title="刪除">🗑</button>' +
+          '</div></div>' +
+        '</div>' +
+      '</div>').join('') + '</div>';
+  }
+  fab.hidden = false;
+  fab.onclick = () => newArtist();
+  bind();
+}
+
+/* ---------- 歌手頁：專輯列表 ---------- */
+async function viewArtist(id) {
+  app.innerHTML = skeletons(6, 'albums');
+  const [artist, albums] = await Promise.all([API.artist(id), API.albums(id)]);
+
+  app.innerHTML = crumbs([{ label: '歌手', hash: '#/' }, { label: artist.name }]) +
+    pageHead(artist.country || 'Artist', artist.name,
+      albums.length + ' 張專輯',
+      '<button class="btn" data-edit-artist=\'' + attr(JSON.stringify(artist)) + '\'>編輯歌手</button>' +
+      '<button class="btn primary" data-new-album="' + artist.id + '">+ 新增專輯</button>') +
+    (albums.length
+      ? '<div class="grid albums">' + albums.map((al) =>
+          '<div class="card">' +
+            '<button style="all:unset;cursor:pointer;display:block" data-go="#/album/' + al.id + '">' +
+              coverHtml(al.cover_url) + '</button>' +
+            '<div class="body">' +
+              '<h3><button style="all:unset;cursor:pointer" data-go="#/album/' + al.id + '">' + esc(al.title) + '</button></h3>' +
+              '<div class="meta">' + esc([al.release_year, al.label].filter(Boolean).join(' · ')) + '</div>' +
+              '<div class="count-row"><span><b>' + al.version_count + '</b> 版本</span>' +
+                '<span><b>' + al.owned_count + '</b> 已收</span><span><b>' + al.want_count + '</b> 想要</span></div>' +
+              '<div class="actions"><div class="card-menu">' +
+                '<button class="mini" data-edit-album=\'' + attr(JSON.stringify(al)) + '\' title="編輯">✎</button>' +
+                '<button class="mini del" data-del-album="' + al.id + '" data-name="' + attr(al.title) + '" title="刪除">🗑</button>' +
+              '</div></div>' +
+            '</div>' +
+          '</div>').join('') + '</div>'
+      : emptyState('還沒有專輯', '幫 ' + artist.name + ' 加入第一張專輯。',
+          '<button class="btn primary" data-new-album="' + artist.id + '">+ 新增專輯</button>'));
+
+  fab.hidden = false;
+  fab.onclick = () => newAlbum(artist.id);
+}
+
+/* ---------- 專輯頁：版本卡片牆 ---------- */
+async function viewAlbum(id) {
+  app.innerHTML = skeletons(6, 'versions');
+  const [album, versions] = await Promise.all([API.album(id), API.versions('album_id=' + id)]);
+  renderVersionPage({
+    album,
+    versions,
+    crumbItems: [
+      { label: '歌手', hash: '#/' },
+      { label: album.artist_name, hash: '#/artist/' + album.artist_id },
+      { label: album.title },
+    ],
+    eyebrow: album.artist_name,
+    title: album.title,
+    sub: [album.release_year, album.label].filter(Boolean).join(' · '),
+    actions:
+      '<button class="btn" data-edit-album=\'' + attr(JSON.stringify(album)) + '\'>編輯專輯</button>' +
+      '<button class="btn primary" data-new-version="' + album.id + '">+ 新增版本</button>',
+    onEmptyBtn: '<button class="btn primary" data-new-version="' + album.id + '">+ 新增版本</button>',
+    fabAction: () => newVersion(album.id),
+  });
+}
+
+/* ---------- 全站收藏（跨專輯） ---------- */
+async function viewCollection() {
+  app.innerHTML = skeletons(8, 'versions');
+  const versions = await API.versions('');
+  renderVersionPage({
+    versions,
+    crumbItems: [{ label: '歌手', hash: '#/' }, { label: '我的收藏' }],
+    eyebrow: 'Collection',
+    title: '所有版本',
+    sub: versions.length + ' 個版本',
+    actions: '',
+    showAlbumName: true,
+    onEmptyBtn: '<button class="btn primary" data-go="#/">回歌手列表</button>',
+  });
+}
+
+function renderVersionPage(opts) {
+  const { versions, crumbItems, eyebrow, title, sub, actions, onEmptyBtn, showAlbumName, fabAction } = opts;
+
+  const regions = [...new Set(versions.map((v) => v.region).filter(Boolean))].sort();
+  const filtered = versions.filter((v) => {
+    if (state.filter === 'want' && !v.want) return false;
+    if (state.filter === 'owned' && !v.owned) return false;
+    if (state.filter === 'limited' && !v.is_limited) return false;
+    if (state.region && v.region !== state.region) return false;
+    return true;
+  });
+
+  const chip = (key, label) =>
+    '<button class="chip' + (state.filter === key ? ' on' : '') + '" data-filter="' + key + '">' + label + '</button>';
+
+  app.innerHTML = crumbs(crumbItems) +
+    pageHead(eyebrow, title, sub, actions) +
+    (versions.length ? '<div class="toolbar">' +
+      '<div class="chips">' + chip('all', '全部') + chip('want', '❤ Want') +
+        chip('owned', '✓ Owned') + chip('limited', 'Limited') + '</div>' +
+      (regions.length > 1
+        ? '<select id="regionSel" style="width:auto;min-width:140px"><option value="">所有地區</option>' +
+          regions.map((r) => '<option value="' + attr(r) + '"' + (state.region === r ? ' selected' : '') + '>' + esc(r) + '</option>').join('') +
+          '</select>'
+        : '') +
+      '<span style="color:var(--muted);font-size:12.5px;margin-left:auto">' + filtered.length + ' / ' + versions.length + '</span>' +
+    '</div>' : '') +
+    (filtered.length
+      ? '<div class="grid versions">' + filtered.map((v) => versionCard(v, showAlbumName)).join('') + '</div>'
+      : emptyState(
+          versions.length ? '沒有符合篩選的版本' : '還沒有任何版本',
+          versions.length ? '換個篩選條件看看。' : '加入第一個版本：顏色、限量、地區、售價都可以記錄。',
+          versions.length ? '<button class="chip" data-filter="all">清除篩選</button>' : onEmptyBtn));
+
+  if (fabAction) { fab.hidden = false; fab.onclick = fabAction; }
+}
+
+function versionCard(v, showAlbumName) {
+  const badges =
+    (v.is_limited ? '<span class="badge limited">Limited</span>' : '') +
+    (v.is_exclusive ? '<span class="badge excl">' + esc(v.exclusive_to || 'Exclusive') + '</span>' : '') +
+    (v.region ? '<span class="badge">' + esc(v.region) + '</span>' : '');
+  const swatch = v.color_hex
+    ? '<span class="swatch" style="background:' + attr(/^#[0-9a-f]{3,8}$/i.test(v.color_hex) ? v.color_hex : '#C9A24B') + '" title="' + attr(v.color || '') + '"></span>'
+    : '';
+  const cover = coverHtml(v.cover_url || v.album_cover_url, '<div class="badges">' + badges + '</div>' + swatch);
+  const buy = safeUrl(v.buy_url);
+
+  const rows = [
+    showAlbumName && v.album_title ? ['專輯', v.artist_name + ' · ' + v.album_title] : null,
+    v.color ? ['顏色', v.color] : null,
+    v.release_date ? ['發行', v.release_date] : null,
+    v.edition_size ? ['限量', Number(v.edition_size).toLocaleString() + ' 張'] : null,
+  ].filter(Boolean);
+
+  return '<div class="card vcard">' + cover +
+    '<div class="body">' +
+      '<h3>' + esc(v.name) + '</h3>' +
+      (rows.length ? '<div class="rows">' + rows.map((r) =>
+        '<div><span>' + esc(r[0]) + '</span><span>' + esc(r[1]) + '</span></div>').join('') + '</div>' : '') +
+      (v.price != null ? '<div class="price" style="margin-top:8px">' + esc(money(v.price, v.currency)) + '</div>' : '') +
+      (v.notes ? '<div class="meta" style="margin-top:6px">' + esc(v.notes) + '</div>' : '') +
+      '<div class="actions">' +
+        '<button class="toggle want' + (v.want ? ' on' : '') + '" data-toggle="want" data-id="' + v.id + '" data-val="' + (v.want ? 0 : 1) + '">❤ Want</button>' +
+        '<button class="toggle owned' + (v.owned ? ' on' : '') + '" data-toggle="owned" data-id="' + v.id + '" data-val="' + (v.owned ? 0 : 1) + '">✓ Owned</button>' +
+        '<div class="card-menu">' +
+          (buy ? '<a class="mini" href="' + attr(buy) + '" target="_blank" rel="noopener noreferrer" title="購買">🛒</a>' : '') +
+          '<button class="mini" data-edit-version=\'' + attr(JSON.stringify(v)) + '\' title="編輯">✎</button>' +
+          '<button class="mini del" data-del-version="' + v.id + '" data-name="' + attr(v.name) + '" title="刪除">🗑</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+/* ========================================================================== */
+/* 新增 / 編輯                                                                 */
+/* ========================================================================== */
+const newArtist = () => formModal({
+  title: '新增歌手', hint: '收藏庫的第一層', fields: artistFields, submitLabel: '新增',
+  onSubmit: async (d) => { await API.createArtist(d); toast('已新增歌手'); render(); },
+});
+
+const editArtist = (a) => formModal({
+  title: '編輯歌手', fields: artistFields, values: a, submitLabel: '儲存',
+  onSubmit: async (d) => { await API.updateArtist(a.id, d); toast('已更新'); render(); },
+});
+
+const newAlbum = (artistId) => formModal({
+  title: '新增專輯', fields: albumFields, submitLabel: '新增',
+  onSubmit: async (d) => { await API.createAlbum({ ...d, artist_id: artistId }); toast('已新增專輯'); render(); },
+});
+
+const editAlbum = (al) => formModal({
+  title: '編輯專輯', fields: albumFields, values: al, submitLabel: '儲存',
+  onSubmit: async (d) => { await API.updateAlbum(al.id, d); toast('已更新'); render(); },
+});
+
+const newVersion = (albumId) => formModal({
+  title: '新增版本', hint: '顏色、限量、地區、售價、購買連結', fields: versionFields,
+  values: { currency: 'USD', color_hex: '#C9A24B' }, submitLabel: '新增',
+  onSubmit: async (d) => { await API.createVersion({ ...d, album_id: albumId }); toast('已新增版本'); render(); },
+});
+
+const editVersion = (v) => formModal({
+  title: '編輯版本', fields: versionFields, values: v, submitLabel: '儲存',
+  onSubmit: async (d) => { await API.updateVersion(v.id, d); toast('已更新'); render(); },
+});
+
+/* ========================================================================== */
+/* 事件綁定                                                                    */
+/* ========================================================================== */
+function bind() {
+  document.querySelectorAll('[data-go]').forEach((el) => {
+    el.onclick = (e) => { e.preventDefault(); go(el.dataset.go); };
+  });
+  document.querySelectorAll('[data-settings]').forEach((el) => { el.onclick = openSettings; });
+  document.querySelectorAll('[data-retry]').forEach((el) => { el.onclick = render; });
+
+  document.querySelectorAll('[data-new-artist]').forEach((el) => { el.onclick = () => newArtist(); });
+  document.querySelectorAll('[data-new-album]').forEach((el) => { el.onclick = () => newAlbum(Number(el.dataset.newAlbum)); });
+  document.querySelectorAll('[data-new-version]').forEach((el) => { el.onclick = () => newVersion(Number(el.dataset.newVersion)); });
+
+  document.querySelectorAll('[data-edit-artist]').forEach((el) => { el.onclick = () => editArtist(JSON.parse(el.dataset.editArtist)); });
+  document.querySelectorAll('[data-edit-album]').forEach((el) => { el.onclick = () => editAlbum(JSON.parse(el.dataset.editAlbum)); });
+  document.querySelectorAll('[data-edit-version]').forEach((el) => { el.onclick = () => editVersion(JSON.parse(el.dataset.editVersion)); });
+
+  document.querySelectorAll('[data-del-artist]').forEach((el) => {
+    el.onclick = () => confirmModal('刪除「' + el.dataset.name + '」會同時刪掉底下所有專輯與版本，確定嗎？',
+      async () => { await API.deleteArtist(el.dataset.delArtist); toast('已刪除'); go('#/'); render(); });
+  });
+  document.querySelectorAll('[data-del-album]').forEach((el) => {
+    el.onclick = () => confirmModal('刪除「' + el.dataset.name + '」會同時刪掉底下所有版本，確定嗎？',
+      async () => { await API.deleteAlbum(el.dataset.delAlbum); toast('已刪除'); render(); });
+  });
+  document.querySelectorAll('[data-del-version]').forEach((el) => {
+    el.onclick = () => confirmModal('確定刪除版本「' + el.dataset.name + '」？',
+      async () => { await API.deleteVersion(el.dataset.delVersion); toast('已刪除'); render(); });
+  });
+
+  document.querySelectorAll('[data-toggle]').forEach((el) => {
+    el.onclick = async () => {
+      const field = el.dataset.toggle, val = Number(el.dataset.val), id = el.dataset.id;
+      el.disabled = true;
+      el.classList.toggle('on', val === 1);          // 樂觀更新
+      el.dataset.val = val === 1 ? 0 : 1;
+      try {
+        await API.updateVersion(id, { [field]: val });
+        toast(field === 'want' ? (val ? '已加入想要' : '已移除想要') : (val ? '已標記擁有' : '已取消擁有'));
+        refreshStats();
+      } catch (err) {
+        el.classList.toggle('on', val !== 1);        // 回滾
+        el.dataset.val = val;
+        toast(err.message, true);
+      } finally { el.disabled = false; }
+    };
+  });
+
+  document.querySelectorAll('[data-filter]').forEach((el) => {
+    el.onclick = () => { state.filter = el.dataset.filter; if (state.filter === 'all') state.region = ''; render(); };
+  });
+
+  const regionSel = $('#regionSel');
+  if (regionSel) regionSel.onchange = () => { state.region = regionSel.value; render(); };
+
+  const q = $('#q');
+  if (q) {
+    let t;
+    q.oninput = () => { clearTimeout(t); t = setTimeout(() => { state.q = q.value.trim(); render(); }, 320); };
+    if (state.q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+  }
+}
+
+/* ========================================================================== */
+window.addEventListener('hashchange', () => { state.filter = 'all'; state.region = ''; render(); });
+render();
+})();
+</script>
+</body>
+</html>

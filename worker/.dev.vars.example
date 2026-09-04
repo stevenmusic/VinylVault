@@ -1,0 +1,6 @@
+# 複製成 worker/.dev.vars 後填入自己的值（.dev.vars 不會進版控）
+TURSO_DATABASE_URL="libsql://vinylvault-db-<你的帳號>.turso.io"
+TURSO_AUTH_TOKEN="<turso db tokens create vinylvault-db 產生的 token>"
+# 選用
+ALLOWED_ORIGINS=""
+WRITE_TOKEN=""

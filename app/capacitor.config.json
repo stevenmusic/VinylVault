@@ -1,0 +1,16 @@
+{
+  "appId": "com.stevenmusic.vinylvault",
+  "appName": "VinylVault",
+  "webDir": "www",
+  "server": {
+    "iosScheme": "capacitor",
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#0C0A07"
+  },
+  "android": {
+    "backgroundColor": "#0C0A07"
+  }
+}
