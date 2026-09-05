@@ -21,3 +21,10 @@ ALLOWED_ORIGINS = ""
 
 [observability]
 enabled = true
+
+# 讓 Worker 直接把前端網頁一起送出去（Wrangler 會把這些檔案當成文字模組打包），
+# 這樣還沒開 GitHub Pages 之前，直接開 Worker 網址就能用 App。
+[[rules]]
+type = "Text"
+globs = ["**/*.html", "**/*.webmanifest"]
+fallthrough = true

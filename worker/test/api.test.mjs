@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createMockTurso } from './turso-mock.mjs';
 
 globalThis.fetch = createMockTurso();
-const worker = (await import('../src/index.js')).default;
+const worker = (await import('../src/api.js')).default;
 
 const env = {
   TURSO_DATABASE_URL: 'libsql://mock.turso.io',

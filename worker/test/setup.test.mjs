@@ -4,7 +4,7 @@ import { createMockTurso } from './turso-mock.mjs';
 
 // 空資料庫：完全沒有資料表，模擬使用者剛建好 Turso 的狀態
 globalThis.fetch = createMockTurso({ schema: false });
-const worker = (await import('../src/index.js')).default;
+const worker = (await import('../src/api.js')).default;
 
 const env = { TURSO_DATABASE_URL: 'libsql://mock.turso.io', TURSO_AUTH_TOKEN: 'mock' };
 
@@ -13,10 +13,16 @@ const call = async (path, init = {}, e = env) => {
   return { status: res.status, body: await res.json() };
 };
 
-test('/setup 會在空資料庫建好三張表', async () => {
-  const before = await call('/artists');
-  assert.equal(before.status, 400);            // 還沒有資料表
+test('空資料庫讀取時會自動建表（不必手動開 /setup）', async () => {
+  const r = await call('/artists');
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body, []);
 
+  const tables = (await call('/setup')).body.tables;
+  assert.deepEqual(tables.sort(), ['albums', 'artists', 'versions']);
+});
+
+test('/setup 會在空資料庫建好三張表', async () => {
   const r = await call('/setup');
   assert.equal(r.status, 200);
   assert.equal(r.body.ok, true);
@@ -61,4 +67,19 @@ test('有設 WRITE_TOKEN 時 /setup 需要驗證', async () => {
   assert.equal((await call('/setup?token=wrong', {}, guarded)).status, 401);
   assert.equal((await call('/setup?token=secret123', {}, guarded)).status, 200);
   assert.equal((await call('/setup', { headers: { Authorization: 'Bearer secret123' } }, guarded)).status, 200);
+});
+
+test('自動建表後寫入也正常', async () => {
+  // 用一個全新的空資料庫
+  globalThis.fetch = createMockTurso({ schema: false });
+  const w = (await import('../src/api.js')).default;
+  const post = await w.fetch(new Request('https://api.test/artists', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Daft Punk', country: 'FR' }),
+  }), env);
+  assert.equal(post.status, 201);
+  const list = await (await w.fetch(new Request('https://api.test/artists'), env)).json();
+  assert.equal(list.length, 1);
+  assert.equal(list[0].name, 'Daft Punk');
 });

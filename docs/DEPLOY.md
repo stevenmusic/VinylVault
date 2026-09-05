@@ -36,13 +36,8 @@ turso db create vinylvault-db
 
 ### 1.4 建立資料表
 
-**最簡單的方式：先跳過這步。** Worker 部署好之後（步驟 2），用瀏覽器打開一次
-
-```
-https://vinylvault-api.<你的帳號>.workers.dev/setup?seed=1
-```
-
-三張表就建好了，手機也能操作，完全不用碰 SQL Console。
+**跳過這步。** Worker 第一次讀取資料時發現沒有資料表，會自動建好，
+完全不用碰 SQL Console。（想手動觸發或放範例資料：開 `/setup?seed=1`。）
 
 <details>
 <summary>想自己動手建（CLI 或網頁 SQL Console）</summary>

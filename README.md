@@ -75,21 +75,18 @@ npx wrangler secret put TURSO_AUTH_TOKEN     # 貼上第 1 步的 token
 ```
 
 部署後會得到 `https://vinylvault-api.<你的帳號>.workers.dev`。
+**直接用瀏覽器打開它就是 App 本體** —— Worker 會把前端網頁一起送出來，
+資料表也會在第一次讀取時自動建立，不必另外做任何事。
 
-**建立資料表**（瀏覽器直接開這個網址就行，手機也可以）：
+想手動建表或放範例資料，可以開 `/setup?seed=1`（可重複執行，不會弄壞既有資料）。
 
-```
-https://vinylvault-api.<你的帳號>.workers.dev/setup?seed=1
-```
+### 3. GitHub Pages（選用）
 
-看到 `"ok": true` 就完成了。`?seed=1` 會順便放一筆範例資料，不需要就去掉。
-這支可以重複執行，不會弄壞既有資料。
-
-### 3. GitHub Pages
+Worker 網址本身就能用了，這步只是多一個好記的網址。
 
 `Settings → Pages → Source: GitHub Actions`（repo 已內含 `.github/workflows/pages.yml`，推到 `main` 就自動部署）。
 
-接著把 `config.js` 的 `apiBase` 換成你的 Worker 網址並 commit，或直接在 App 裡按 ⚙ 填寫（存在瀏覽器本機）。
+`config.js` 的 `apiBase` 已經指向 Worker，不用再設定。
 
 ---
 

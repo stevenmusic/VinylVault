@@ -23,7 +23,7 @@ const PORT = Number(process.env.PORT || 8787);
 
 // --empty：模擬「Turso 剛建好、還沒有資料表」的狀態，用來測 /setup 流程
 globalThis.fetch = createMockTurso({ schema: !process.argv.includes('--empty') });
-const worker = (await import('../worker/src/index.js')).default;
+const worker = (await import('../worker/src/api.js')).default;
 const env = { TURSO_DATABASE_URL: 'libsql://local.mock', TURSO_AUTH_TOKEN: 'local' };
 
 if (process.argv.includes('--seed')) {
