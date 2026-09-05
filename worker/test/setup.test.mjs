@@ -19,14 +19,14 @@ test('空資料庫讀取時會自動建表（不必手動開 /setup）', async (
   assert.deepEqual(r.body, []);
 
   const tables = (await call('/setup')).body.tables;
-  assert.deepEqual(tables.sort(), ['albums', 'artists', 'versions']);
+  assert.deepEqual(tables.sort(), ['albums', 'artists', 'tracks', 'versions']);
 });
 
-test('/setup 會在空資料庫建好三張表', async () => {
+test('/setup 會在空資料庫建好四張表', async () => {
   const r = await call('/setup');
   assert.equal(r.status, 200);
   assert.equal(r.body.ok, true);
-  assert.deepEqual(r.body.tables.sort(), ['albums', 'artists', 'versions']);
+  assert.deepEqual(r.body.tables.sort(), ['albums', 'artists', 'tracks', 'versions']);
   assert.equal(r.body.seeded, false);
 
   const after = await call('/artists');

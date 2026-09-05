@@ -1,6 +1,10 @@
 # VinylVault
 
-黑膠唱片版本收藏庫 — **歌手 → 專輯 → 版本** 三層結構，記錄每張唱片的顏色、限量、獨佔通路、地區、發行日、售價與購買連結，並用 ❤ Want / ✓ Owned 追蹤收藏狀態。
+黑膠唱片版本收藏庫 — **歌手 → 專輯 → 版本 → 曲目** 四層結構。
+
+輸入一位歌手的名字，App 會自動從 [MusicBrainz](https://musicbrainz.org)（免費的公開音樂資料庫，不用申請金鑰）抓出他歷年來所有黑膠發行：發行年份、地區、廠牌、廠牌編號、規格，以及每一張的 **Side A / Side B 完整曲目**。抓進來之後再用 ❤ Want / ✓ Owned 標記自己的收藏狀態。
+
+也可以手動新增，記錄唱片顏色、限量張數、獨佔通路、售價與購買連結。
 
 ## 兩種用法
 
@@ -25,7 +29,7 @@ Worker 本身也會把前端網頁一起送出來，所以部署完直接開 Wor
 | --- | --- |
 | `index.html` | 完整前端（單檔，無框架、無建置步驟） |
 | `config.js` | 前端設定：Worker 網址 |
-| `db/schema.sql` | Turso 資料表：`artists` / `albums` / `versions` |
+| `db/schema.sql` | Turso 資料表：`artists` / `albums` / `versions` / `tracks` |
 | `db/seed.sql` | 選用的範例資料 |
 | `worker/src/api.js` | Worker 的 API 邏輯（零依賴，直接呼叫 Turso HTTP API） |
 | `worker/src/index.js` | Worker 進入點，額外把前端網頁一起打包 |

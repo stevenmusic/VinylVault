@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS artists (
   country     TEXT,
   image_url   TEXT,
   notes       TEXT,
+  mb_id       TEXT,
   created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
 );
@@ -33,6 +34,7 @@ CREATE TABLE IF NOT EXISTS albums (
   cover_url    TEXT,
   label        TEXT,
   notes        TEXT,
+  mb_id        TEXT,
   created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
 );
@@ -61,14 +63,35 @@ CREATE TABLE IF NOT EXISTS versions (
   want          INTEGER NOT NULL DEFAULT 0 CHECK (want IN (0,1)),
   owned         INTEGER NOT NULL DEFAULT 0 CHECK (owned IN (0,1)),
   notes         TEXT,
+  format        TEXT,                      -- 例：12" Vinyl / 2×12" Vinyl
+  catalog_no    TEXT,                      -- 廠牌編號
+  mb_id         TEXT,                      -- MusicBrainz release MBID（匯入用，可去重）
+  tracks_loaded INTEGER NOT NULL DEFAULT 0 CHECK (tracks_loaded IN (0,1)),
   created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at    TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_versions_album  ON versions(album_id);
+CREATE INDEX IF NOT EXISTS idx_versions_mb     ON versions(mb_id);
 CREATE INDEX IF NOT EXISTS idx_versions_want   ON versions(want);
 CREATE INDEX IF NOT EXISTS idx_versions_owned  ON versions(owned);
 CREATE INDEX IF NOT EXISTS idx_versions_region ON versions(region);
+
+--------------------------------------------------------------------------------
+-- 4. 曲目（依版本存，因為同一張專輯不同版本的曲序可能不同）
+--------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS tracks (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  version_id  INTEGER NOT NULL REFERENCES versions(id) ON DELETE CASCADE,
+  position    INTEGER NOT NULL,            -- 整張的排序（1,2,3...）
+  side        TEXT,                        -- A / B / C / D，從 number 取首字母
+  number      TEXT,                        -- 唱片上印的編號，例：A1、B2
+  title       TEXT    NOT NULL,
+  length_ms   INTEGER,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_tracks_version ON tracks(version_id, position);
 
 --------------------------------------------------------------------------------
 -- updated_at 觸發器

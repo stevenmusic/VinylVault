@@ -109,6 +109,15 @@ curl -X POST https://<worker>/artists \
 | `owned` | 0/1 | ✓ 已擁有 |
 | `notes` | text | 備註 |
 
+### 曲目 `/versions/:id/tracks`
+
+| 方法 | 說明 |
+| --- | --- |
+| GET | 取得這個版本的曲目，依 `position` 排序 |
+| PUT | 整批取代曲目，body：`{ "tracks": [{ "number": "A1", "title": "…", "length_ms": 284000 }] }`（最多 200 首） |
+
+`side`（A / B / C…）會從 `number` 的首字母自動推出來，`versions.tracks_loaded` 會被設為 1。
+
 切換收藏狀態：
 
 ```bash

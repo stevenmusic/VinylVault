@@ -32,6 +32,8 @@
  *   GET    /versions/:id
  *   PATCH  /versions/:id            （含 want / owned 切換）
  *   DELETE /versions/:id
+ *   GET    /versions/:id/tracks     曲目
+ *   PUT    /versions/:id/tracks     整批取代曲目
  *   GET    /stats
  */
 
@@ -178,6 +180,12 @@ const toNumOrNull = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 };
+/** 從唱片編號取出面別：A1 -> A、B2 -> B */
+const sideOf = (number) => {
+  const m = /^\s*([A-Za-z])/.exec(number ?? '');
+  return m ? m[1].toUpperCase() : null;
+};
+
 const toStrOrNull = (v) => {
   if (v === null || v === undefined) return null;
   const s = String(v).trim();
@@ -204,12 +212,12 @@ function buildUpdate(table, id, body, fields) {
 
 const ARTIST_FIELDS = {
   name: toStrOrNull, sort_name: toStrOrNull, country: toStrOrNull,
-  image_url: toStrOrNull, notes: toStrOrNull,
+  image_url: toStrOrNull, notes: toStrOrNull, mb_id: toStrOrNull,
 };
 
 const ALBUM_FIELDS = {
   artist_id: toIntOrNull, title: toStrOrNull, release_year: toIntOrNull,
-  cover_url: toStrOrNull, label: toStrOrNull, notes: toStrOrNull,
+  cover_url: toStrOrNull, label: toStrOrNull, notes: toStrOrNull, mb_id: toStrOrNull,
 };
 
 const VERSION_FIELDS = {
@@ -219,6 +227,7 @@ const VERSION_FIELDS = {
   region: toStrOrNull, release_date: toStrOrNull, edition_size: toIntOrNull,
   price: toNumOrNull, currency: toStrOrNull, buy_url: toStrOrNull,
   want: toBit, owned: toBit, notes: toStrOrNull,
+  format: toStrOrNull, catalog_no: toStrOrNull, mb_id: toStrOrNull, tracks_loaded: toBit,
 };
 
 /* -------------------------------------------------------------------------- */
@@ -233,6 +242,7 @@ const SCHEMA_STATEMENTS = [
      country     TEXT,
      image_url   TEXT,
      notes       TEXT,
+     mb_id       TEXT,
      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
      updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
    )`,
@@ -244,6 +254,7 @@ const SCHEMA_STATEMENTS = [
      cover_url    TEXT,
      label        TEXT,
      notes        TEXT,
+     mb_id        TEXT,
      created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
      updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
    )`,
@@ -266,8 +277,22 @@ const SCHEMA_STATEMENTS = [
      want          INTEGER NOT NULL DEFAULT 0 CHECK (want IN (0,1)),
      owned         INTEGER NOT NULL DEFAULT 0 CHECK (owned IN (0,1)),
      notes         TEXT,
+     format        TEXT,
+     catalog_no    TEXT,
+     mb_id         TEXT,
+     tracks_loaded INTEGER NOT NULL DEFAULT 0 CHECK (tracks_loaded IN (0,1)),
      created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
      updated_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+   )`,
+  `CREATE TABLE IF NOT EXISTS tracks (
+     id          INTEGER PRIMARY KEY AUTOINCREMENT,
+     version_id  INTEGER NOT NULL REFERENCES versions(id) ON DELETE CASCADE,
+     position    INTEGER NOT NULL,
+     side        TEXT,
+     number      TEXT,
+     title       TEXT    NOT NULL,
+     length_ms   INTEGER,
+     created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
    )`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_artists_name   ON artists(name)`,
   `CREATE INDEX IF NOT EXISTS idx_albums_artist         ON albums(artist_id)`,
@@ -275,10 +300,25 @@ const SCHEMA_STATEMENTS = [
   `CREATE INDEX IF NOT EXISTS idx_versions_want         ON versions(want)`,
   `CREATE INDEX IF NOT EXISTS idx_versions_owned        ON versions(owned)`,
   `CREATE INDEX IF NOT EXISTS idx_versions_region       ON versions(region)`,
+  `CREATE INDEX IF NOT EXISTS idx_versions_mb           ON versions(mb_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_tracks_version        ON tracks(version_id, position)`,
+];
+
+/** 舊資料庫升級用：欄位已存在時 SQLite 會報錯，直接忽略。 */
+const SCHEMA_MIGRATIONS = [
+  `ALTER TABLE artists  ADD COLUMN mb_id TEXT`,
+  `ALTER TABLE albums   ADD COLUMN mb_id TEXT`,
+  `ALTER TABLE versions ADD COLUMN format TEXT`,
+  `ALTER TABLE versions ADD COLUMN catalog_no TEXT`,
+  `ALTER TABLE versions ADD COLUMN mb_id TEXT`,
+  `ALTER TABLE versions ADD COLUMN tracks_loaded INTEGER NOT NULL DEFAULT 0`,
 ];
 
 async function runSetup(env, { seed = false } = {}) {
   for (const sql of SCHEMA_STATEMENTS) await query(env, sql);
+  for (const sql of SCHEMA_MIGRATIONS) {
+    try { await query(env, sql); } catch { /* 欄位已存在 */ }
+  }
 
   const { rows } = await query(env,
     `SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name`);
@@ -328,11 +368,13 @@ async function handle(request, env, assets) {
   const url = new URL(request.url);
   const method = request.method.toUpperCase();
   const segments = url.pathname.split('/').filter(Boolean);
-  const [resource, rawId] = segments;
+  const [resource, rawId, sub] = segments;
   const id = rawId != null ? toIntOrNull(rawId) : null;
   const p = url.searchParams;
 
-  if (segments.length > 2) throw new HttpError(404, 'Not found');
+  if (segments.length > 3 || (segments.length === 3 && sub !== 'tracks')) {
+    throw new HttpError(404, 'Not found');
+  }
   if (rawId != null && id === null) throw new HttpError(400, 'Invalid id');
   if (method !== 'GET' && method !== 'OPTIONS') requireWriteAuth(request, env);
 
@@ -536,6 +578,39 @@ async function handle(request, env, assets) {
         ${where}
         ORDER BY COALESCE(v.release_date, '9999-99-99') DESC, v.name COLLATE NOCASE
       `, args);
+      return rows;
+    }
+
+    if (method === 'GET' && id !== null && sub === 'tracks') {
+      const { rows } = await query(env,
+        `SELECT * FROM tracks WHERE version_id = ? ORDER BY position`, [id]);
+      return rows;
+    }
+
+    // 整批取代某個版本的曲目（匯入曲目時用）
+    if (method === 'PUT' && id !== null && sub === 'tracks') {
+      const body = await readJson(request);
+      const list = Array.isArray(body.tracks) ? body.tracks : null;
+      if (!list) throw new HttpError(400, 'tracks must be an array');
+      if (list.length > 200) throw new HttpError(400, 'too many tracks');
+
+      const { rows: exists } = await query(env, 'SELECT id FROM versions WHERE id = ?', [id]);
+      if (!exists[0]) throw new HttpError(404, 'Version not found');
+
+      await query(env, 'DELETE FROM tracks WHERE version_id = ?', [id]);
+      let pos = 0;
+      for (const t of list) {
+        const title = toStrOrNull(t.title);
+        if (!title) continue;
+        const number = toStrOrNull(t.number);
+        await query(env,
+          `INSERT INTO tracks (version_id, position, side, number, title, length_ms)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [id, ++pos, toStrOrNull(t.side) ?? sideOf(number), number, title, toIntOrNull(t.length_ms)]);
+      }
+      await query(env, 'UPDATE versions SET tracks_loaded = 1 WHERE id = ?', [id]);
+      const { rows } = await query(env,
+        `SELECT * FROM tracks WHERE version_id = ? ORDER BY position`, [id]);
       return rows;
     }
 
