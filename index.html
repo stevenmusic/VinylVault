@@ -238,6 +238,21 @@ label.fld > span{display:block;font-size:11.5px;letter-spacing:.14em;text-transf
   width:54px;height:54px;border-radius:50%;background:var(--gold);color:#171208;border:0;
   font-size:26px;line-height:1;display:grid;place-items:center;box-shadow:var(--shadow)}
 .fab:hover{background:#d8b25e}
+.sec-h{display:flex;align-items:center;gap:10px;margin:26px 0 12px;
+  font-size:11.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--gold)}
+.sec-h::after{content:"";flex:1;height:1px;background:var(--line)}
+.hit{display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+  border:1px solid var(--line);background:var(--ink-2);border-radius:12px;
+  padding:11px 14px;transition:.16s}
+.hit:hover{border-color:var(--gold);transform:translateY(-1px)}
+.hit-disc{width:32px;height:32px;border-radius:50%;flex:none;
+  background:radial-gradient(circle at 50% 50%, var(--gold) 0 16%, var(--ink-3) 17% 100%);
+  box-shadow:inset 0 0 0 1px var(--line)}
+.hit-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.hit-name{display:block;font-size:14.5px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hit-meta{display:block;font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hit-go{font-size:12px;color:var(--gold);flex:none;letter-spacing:.05em}
+.hits{display:flex;flex-direction:column;gap:8px}
 .side{margin-bottom:16px}
 .side-h{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);
   border-bottom:1px solid var(--line);padding-bottom:5px;margin-bottom:6px}
@@ -657,12 +672,22 @@ function mbFetch(path) {
 
 const VINYL = /vinyl|lp\b|\bep\b.*vinyl|shellac/i;
 
-/** 搜尋歌手 */
-async function mbSearchArtists(name) {
-  const d = await mbFetch('/artist?query=' + encodeURIComponent(name) + '&limit=8');
+/** Lucene 的保留字元要拿掉，不然使用者打個問號就整串查詢壞掉 */
+const luceneSafe = (s) => String(s).replace(/[+\-&|!(){}\[\]^"~*?:\\/]/g, ' ').trim();
+
+/**
+ * 搜尋歌手。prefix = true 時做前綴比對，
+ * 打「Ari」就能找到 Ariana Grande。
+ */
+async function mbSearchArtists(name, { prefix = false, limit = 8 } = {}) {
+  const clean = luceneSafe(name);
+  if (!clean) return [];
+  const q = prefix ? clean + '*' : clean;
+  const d = await mbFetch('/artist?query=' + encodeURIComponent(q) + '&limit=' + limit);
   return (d.artists || []).map((a) => ({
     mb_id: a.id,
     name: a.name,
+    score: a.score ?? 0,
     country: a.country || a.area?.name || null,
     type: a.type || null,
     hint: a.disambiguation || '',
@@ -1095,50 +1120,89 @@ async function refreshStats() {
   } catch { el.hidden = true; }
 }
 
-/* ---------- 首頁：歌手列表 ---------- */
+/* ---------- 首頁：歌手列表 + 線上即時搜尋 ---------- */
+let onlineSeq = 0;
+
+const artistGridHtml = (artists) =>
+  '<div class="grid artists">' + artists.map((a) =>
+    '<div class="card artist-card">' +
+      '<button style="all:unset;cursor:pointer;display:block" data-go="#/artist/' + a.id + '">' +
+        coverHtml(a.image_url) + '</button>' +
+      '<div class="body">' +
+        '<h3><button style="all:unset;cursor:pointer" data-go="#/artist/' + a.id + '">' + esc(a.name) + '</button></h3>' +
+        (a.country ? '<div class="meta">' + esc(a.country) + '</div>' : '') +
+        '<div class="count-row"><span><b>' + a.album_count + '</b> 專輯</span>' +
+          '<span><b>' + a.version_count + '</b> 版本</span>' +
+          '<span><b>' + a.owned_count + '</b> 已收</span></div>' +
+        '<div class="actions"><div class="card-menu">' +
+          '<button class="mini" data-edit-artist=\'' + attr(JSON.stringify(a)) + '\' title="編輯">✎</button>' +
+          '<button class="mini del" data-del-artist="' + a.id + '" data-name="' + attr(a.name) + '" title="刪除">🗑</button>' +
+        '</div></div>' +
+      '</div>' +
+    '</div>').join('') + '</div>';
+
 async function viewHome() {
   app.innerHTML = crumbs([{ label: '歌手' }]) +
-    pageHead('Collection', '歌手', '點進歌手查看專輯與版本',
+    pageHead('Collection', '歌手', '打幾個字就直接查線上資料庫，選一位就把他所有黑膠抓進來',
       '<button class="btn" data-go="#/collection">我的收藏</button>' +
-      '<button class="btn" data-new-artist>+ 手動新增</button>' +
-      '<button class="btn primary" data-import>⤓ 從資料庫匯入</button>') +
-    '<div class="toolbar"><div class="search"><input id="q" placeholder="搜尋我的收藏…" value="' + attr(state.q) + '"></div></div>' +
-    '<div id="list">' + skeletons(8, 'artists') + '</div>';
+      '<button class="btn" data-new-artist>+ 手動新增</button>') +
+    '<div class="toolbar"><div class="search">' +
+      '<input id="q" placeholder="輸入歌手名字，打幾個字就好…" value="' + attr(state.q) + '" autocomplete="off"></div></div>' +
+    '<div id="list">' + skeletons(6, 'artists') + '</div>' +
+    '<div id="online"></div>';
   bind();
-
-  const artists = await API.artists(state.q);
-  const list = $('#list');
-  if (!artists.length) {
-    list.innerHTML = state.q
-      ? emptyState('你的收藏裡沒有「' + state.q + '」',
-          '這個搜尋框只找你已經收藏的歌手。要把新的歌手抓進來，用下面的線上資料庫。',
-          '<button class="btn primary" data-import-q="' + attr(state.q) + '">⤓ 到線上資料庫找「' + esc(state.q) + '」</button>' +
-          ' <button class="btn" data-new-artist>+ 手動新增</button>')
-      : emptyState('收藏庫還是空的',
-          '輸入一位歌手，自動抓出他歷年來所有黑膠發行 —— 年份、地區、廠牌、Side A / Side B 曲目全都幫你填好。',
-          '<button class="btn primary" data-import>⤓ 從資料庫匯入</button>' +
-          ' <button class="btn" data-new-artist>+ 手動新增</button>');
-  } else {
-    list.innerHTML = '<div class="grid artists">' + artists.map((a) =>
-      '<div class="card artist-card">' +
-        '<button style="all:unset;cursor:pointer;display:block" data-go="#/artist/' + a.id + '">' +
-          coverHtml(a.image_url) + '</button>' +
-        '<div class="body">' +
-          '<h3><button style="all:unset;cursor:pointer" data-go="#/artist/' + a.id + '">' + esc(a.name) + '</button></h3>' +
-          (a.country ? '<div class="meta">' + esc(a.country) + '</div>' : '') +
-          '<div class="count-row"><span><b>' + a.album_count + '</b> 專輯</span>' +
-            '<span><b>' + a.version_count + '</b> 版本</span>' +
-            '<span><b>' + a.owned_count + '</b> 已收</span></div>' +
-          '<div class="actions"><div class="card-menu">' +
-            '<button class="mini" data-edit-artist=\'' + attr(JSON.stringify(a)) + '\' title="編輯">✎</button>' +
-            '<button class="mini del" data-del-artist="' + a.id + '" data-name="' + attr(a.name) + '" title="刪除">🗑</button>' +
-          '</div></div>' +
-        '</div>' +
-      '</div>').join('') + '</div>';
-  }
   fab.hidden = false;
   fab.onclick = () => newArtist();
+  await refreshHome();
+}
+
+/** 只更新結果區，不重繪整頁 —— 輸入游標與注音組字才不會被打斷。 */
+async function refreshHome() {
+  const list = $('#list');
+  if (!list) return;
+  const artists = await API.artists(state.q);
+  if (!$('#list')) return;
+
+  $('#list').innerHTML = artists.length
+    ? (state.q ? '<div class="sec-h">我的收藏</div>' : '') + artistGridHtml(artists)
+    : (state.q ? '' : emptyState('收藏庫還是空的',
+        '在上面打一位歌手的名字 —— 打幾個字就好。找到他之後，歷年來所有黑膠發行、年份、地區、廠牌、Side A / Side B 曲目都會自動抓進來。',
+        '<button class="btn" data-new-artist>+ 手動新增</button>'));
   bind();
+  searchOnline(state.q);
+}
+
+/** 邊打邊查線上資料庫；只渲染最後一次查詢的結果。 */
+function searchOnline(term) {
+  const seq = ++onlineSeq;
+  const slot = $('#online');
+  if (!slot) return;
+  if (!term) { slot.innerHTML = ''; return; }
+
+  const head = '<div class="sec-h">線上資料庫</div>';
+  const note = (t) => head + '<p style="color:var(--muted);font-size:13px;margin:0">' + t + '</p>';
+  slot.innerHTML = note('搜尋「' + esc(term) + '」…');
+
+  mbSearchArtists(term, { prefix: true, limit: 10 }).then((list) => {
+    const el = $('#online');
+    if (seq !== onlineSeq || !el) return;
+    if (!list.length) { el.innerHTML = note('找不到符合「' + esc(term) + '」的歌手。'); return; }
+    el.innerHTML = '<div class="sec-h">線上資料庫 · 點一下抓進來</div>' +
+      '<div class="hits">' + list.map((a) =>
+        '<button class="hit" data-hit=\'' + attr(JSON.stringify(a)) + '\'>' +
+          '<span class="hit-disc"></span>' +
+          '<span class="hit-main">' +
+            '<span class="hit-name">' + esc(a.name) + '</span>' +
+            '<span class="hit-meta">' + esc([a.type, a.country, a.began, a.hint].filter(Boolean).join(' · ') || '歌手') + '</span>' +
+          '</span>' +
+          '<span class="hit-go">抓取 →</span>' +
+        '</button>').join('') + '</div>';
+    bind();
+  }).catch((e) => {
+    const el = $('#online');
+    if (seq !== onlineSeq || !el) return;
+    el.innerHTML = head + '<div class="err"><b>查不到線上資料</b><code>' + esc(e.message) + '</code></div>';
+  });
 }
 
 /* ---------- 歌手頁：專輯列表 ---------- */
@@ -1294,7 +1358,8 @@ function versionCard(v, showAlbumName) {
 /* ========================================================================== */
 /* 從 MusicBrainz 匯入                                                         */
 /* ========================================================================== */
-function openImport(initialQuery) {
+function openImport(opts) {
+  const { query: initialQuery, artist: directArtist } = opts || {};
   const m = openModal(
     '<h3>從資料庫匯入</h3>' +
     '<p class="hint">輸入歌手名字，自動抓出他歷年來所有黑膠發行 —— 發行年份、地區、廠牌、曲目全都有。資料來自 MusicBrainz（免費的公開音樂資料庫）。</p>' +
@@ -1440,7 +1505,13 @@ function openImport(initialQuery) {
 
   goBtn.onclick = search;
   q.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); search(); } };
-  if (initialQuery) { q.value = initialQuery; search(); }
+  if (directArtist) {
+    q.value = directArtist.name;
+    pickArtist(directArtist);
+  } else if (initialQuery) {
+    q.value = initialQuery;
+    search();
+  }
 }
 
 /* ========================================================================== */
@@ -1536,9 +1607,8 @@ function bind() {
   });
   document.querySelectorAll('[data-settings]').forEach((el) => { el.onclick = openSettings; });
   document.querySelectorAll('[data-retry]').forEach((el) => { el.onclick = render; });
-  document.querySelectorAll('[data-import]').forEach((el) => { el.onclick = () => openImport(); });
-  document.querySelectorAll('[data-import-q]').forEach((el) => {
-    el.onclick = () => openImport(el.dataset.importQ);
+  document.querySelectorAll('[data-hit]').forEach((el) => {
+    el.onclick = () => openImport({ artist: JSON.parse(el.dataset.hit) });
   });
   document.querySelectorAll('[data-tracks]').forEach((el) => {
     el.onclick = () => openTracks(JSON.parse(el.dataset.tracks));
@@ -1593,9 +1663,13 @@ function bind() {
   if (regionSel) regionSel.onchange = () => { state.region = regionSel.value; render(); };
 
   const q = $('#q');
-  if (q) {
+  if (q && !q.dataset.bound) {
+    q.dataset.bound = '1';
     let t;
-    q.oninput = () => { clearTimeout(t); t = setTimeout(() => { state.q = q.value.trim(); render(); }, 320); };
+    q.oninput = () => {
+      clearTimeout(t);
+      t = setTimeout(() => { state.q = q.value.trim(); refreshHome(); }, 380);
+    };
     if (state.q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
   }
 }
