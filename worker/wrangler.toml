@@ -2,6 +2,10 @@ name = "vinylvault-api"
 main = "src/index.js"
 compatibility_date = "2024-11-01"
 
+# 啟用 https://vinylvault-api.<你的子網域>.workers.dev 這個公開網址。
+# 不寫的話，在後台手動停用後每次部署行為會不一致。
+workers_dev = true
+
 # 這裡不要寫 Turso 的 URL / Token。
 # 部署後用指令設成 Secret：
 #   npx wrangler secret put TURSO_DATABASE_URL
