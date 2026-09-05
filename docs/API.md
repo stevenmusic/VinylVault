@@ -17,6 +17,23 @@ GET /health
 → { "service": "vinylvault-api", "ok": true, "configured": true, "db": "ok" }
 ```
 
+## 建立資料表
+
+```
+GET  /setup            建立 artists / albums / versions 三張表（可重複執行）
+GET  /setup?seed=1     順便加入一筆範例資料（資料庫非空時會跳過）
+POST /setup            同上
+```
+
+回傳：
+
+```json
+{ "ok": true, "message": "…", "tables": ["albums","artists","versions"], "seeded": false }
+```
+
+有設 `WRITE_TOKEN` 時需驗證。用瀏覽器網址列操作可以帶 `?token=<WRITE_TOKEN>`，
+用程式呼叫則帶 `Authorization: Bearer <WRITE_TOKEN>`。
+
 ## 統計
 
 ```

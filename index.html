@@ -534,10 +534,25 @@ const emptyState = (title, text, btn) =>
   '<div class="empty"><h3>' + esc(title) + '</h3><p>' + esc(text) + '</p>' + (btn || '') + '</div>';
 
 function errorState(err) {
-  return '<div class="err"><b>載入失敗</b><code>' + esc(err.message) + '</code>' +
+  const needsSetup = /no such table|no such column/i.test(err.message);
+  return '<div class="err">' +
+    (needsSetup
+      ? '<b>資料庫還沒有建立資料表</b><p style="margin:0 0 4px">按下面的按鈕，Worker 會自動幫你建好 artists / albums / versions 三張表。</p>'
+      : '<b>載入失敗</b>') +
+    '<code>' + esc(err.message) + '</code>' +
     '<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">' +
+    (needsSetup ? '<button class="btn sm primary" data-setup>建立資料表</button>' +
+                  '<button class="btn sm" data-setup-seed>建立並加入範例資料</button>' : '') +
     '<button class="btn sm" data-retry>重試</button>' +
     '<button class="btn sm" data-settings>連線設定</button></div></div>';
+}
+
+async function runSetup(seed) {
+  try {
+    const r = await api('/setup' + (seed ? '?seed=1' : ''), { method: 'POST' });
+    toast(r.message || '資料表已建立');
+    render();
+  } catch (e) { toast(e.message, true); }
 }
 
 function setupScreen() {
@@ -858,6 +873,8 @@ function bind() {
   });
   document.querySelectorAll('[data-settings]').forEach((el) => { el.onclick = openSettings; });
   document.querySelectorAll('[data-retry]').forEach((el) => { el.onclick = render; });
+  document.querySelectorAll('[data-setup]').forEach((el) => { el.onclick = () => runSetup(false); });
+  document.querySelectorAll('[data-setup-seed]').forEach((el) => { el.onclick = () => runSetup(true); });
 
   document.querySelectorAll('[data-new-artist]').forEach((el) => { el.onclick = () => newArtist(); });
   document.querySelectorAll('[data-new-album]').forEach((el) => { el.onclick = () => newAlbum(Number(el.dataset.newAlbum)); });

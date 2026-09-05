@@ -48,11 +48,17 @@ node tools/dev-server.mjs --seed
 
 ### 1. Turso 資料庫
 
+到 <https://turso.tech> 登入 → 建立資料庫 `vinylvault-db` → 抄下 **Database URL** 與 **Token**。
+
+**不用自己建資料表**：Worker 部署好之後開一次 `/setup` 就會自動建好（見下一步）。
+
+想用 CLI 也可以：
+
 ```bash
 curl -sSfL https://get.tur.so/install.sh | bash
 turso auth login
 turso db create vinylvault-db
-turso db shell vinylvault-db < db/schema.sql
+turso db shell vinylvault-db < db/schema.sql   # 選用，等同 /setup
 
 turso db show vinylvault-db --url          # → libsql://vinylvault-db-xxx.turso.io
 turso db tokens create vinylvault-db       # → 一長串 token
@@ -69,7 +75,15 @@ npx wrangler secret put TURSO_AUTH_TOKEN     # 貼上第 1 步的 token
 ```
 
 部署後會得到 `https://vinylvault-api.<你的帳號>.workers.dev`。
-用 `curl https://.../health` 確認回傳 `"ok": true`。
+
+**建立資料表**（瀏覽器直接開這個網址就行，手機也可以）：
+
+```
+https://vinylvault-api.<你的帳號>.workers.dev/setup?seed=1
+```
+
+看到 `"ok": true` 就完成了。`?seed=1` 會順便放一筆範例資料，不需要就去掉。
+這支可以重複執行，不會弄壞既有資料。
 
 ### 3. GitHub Pages
 

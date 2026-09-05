@@ -2,6 +2,7 @@
  * 本機開發伺服器 —— 不需要 Turso / Cloudflare 帳號就能先玩前端。
  *
  *   node tools/dev-server.mjs        # http://localhost:8787
+ *   node tools/dev-server.mjs --empty  # 空資料庫，測試 App 內的「建立資料表」按鈕
  *
  * 它做兩件事：
  *   1. 靜態服務專案根目錄（index.html 等）
@@ -20,7 +21,8 @@ import { createMockTurso } from '../worker/test/turso-mock.mjs';
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PORT = Number(process.env.PORT || 8787);
 
-globalThis.fetch = createMockTurso();
+// --empty：模擬「Turso 剛建好、還沒有資料表」的狀態，用來測 /setup 流程
+globalThis.fetch = createMockTurso({ schema: !process.argv.includes('--empty') });
 const worker = (await import('../worker/src/index.js')).default;
 const env = { TURSO_DATABASE_URL: 'libsql://local.mock', TURSO_AUTH_TOKEN: 'local' };
 

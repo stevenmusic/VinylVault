@@ -8,9 +8,9 @@ import { fileURLToPath } from 'node:url';
 
 const SCHEMA = fileURLToPath(new URL('../../db/schema.sql', import.meta.url));
 
-export function createMockTurso() {
+export function createMockTurso({ schema = true } = {}) {
   const db = new DatabaseSync(':memory:');
-  db.exec(readFileSync(SCHEMA, 'utf8'));
+  if (schema) db.exec(readFileSync(SCHEMA, 'utf8'));
 
   const toCell = (v) => {
     if (v === null || v === undefined) return { type: 'null' };

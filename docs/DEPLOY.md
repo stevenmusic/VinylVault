@@ -36,6 +36,17 @@ turso db create vinylvault-db
 
 ### 1.4 建立資料表
 
+**最簡單的方式：先跳過這步。** Worker 部署好之後（步驟 2），用瀏覽器打開一次
+
+```
+https://vinylvault-api.<你的帳號>.workers.dev/setup?seed=1
+```
+
+三張表就建好了，手機也能操作，完全不用碰 SQL Console。
+
+<details>
+<summary>想自己動手建（CLI 或網頁 SQL Console）</summary>
+
 ```bash
 turso db shell vinylvault-db < db/schema.sql
 
@@ -43,14 +54,16 @@ turso db shell vinylvault-db < db/schema.sql
 turso db shell vinylvault-db < db/seed.sql
 ```
 
-沒裝 CLI 的話，也可以打開 Turso 網頁後台 → 選資料庫 → **SQL Console**，把 `db/schema.sql` 全文貼上執行。
+或打開 Turso 網頁後台 → 選資料庫 → **Studio** 分頁（分頁列可以左右滑），
+把 `db/schema.sql` 貼上執行。
 
-確認一下：
+確認：
 
 ```bash
 turso db shell vinylvault-db ".tables"
 # artists  albums  versions
 ```
+</details>
 
 ### 1.5 取得連線資訊（等一下要貼到 Worker）
 
@@ -99,6 +112,25 @@ curl https://vinylvault-api.<你的帳號>.workers.dev/health
 ```
 
 `ok: true` 就代表 Worker 連得到 Turso。
+
+### 2.3b 建立資料表
+
+用瀏覽器（手機也行）打開：
+
+```
+https://vinylvault-api.<你的帳號>.workers.dev/setup?seed=1
+```
+
+回傳：
+
+```json
+{"ok":true,"message":"資料表已建立…","tables":["albums","artists","versions"],"seeded":true}
+```
+
+- `?seed=1` 會加一筆範例資料，不想要就拿掉。
+- 可以重複執行，用的是 `CREATE TABLE IF NOT EXISTS`，不會蓋掉既有資料。
+- 如果之後才設 `WRITE_TOKEN`，這支要改成 `/setup?token=<你的WRITE_TOKEN>`。
+- 也可以不開網址：在 App 裡如果偵測到沒有資料表，畫面會直接出現「建立資料表」按鈕。
 
 <details>
 <summary>不想用指令，改用 Cloudflare 網頁後台</summary>

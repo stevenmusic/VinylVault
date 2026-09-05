@@ -15,6 +15,7 @@
  *
  * 路由：
  *   GET    /health
+ *   GET    /setup            建立資料表（?seed=1 順便加範例資料）
  *   GET    /artists                 ?q=&limit=&offset=
  *   POST   /artists
  *   GET    /artists/:id
@@ -220,6 +221,105 @@ const VERSION_FIELDS = {
 };
 
 /* -------------------------------------------------------------------------- */
+/* 建表（GET/POST /setup）—— 不必碰 Turso 的 SQL Console                        */
+/* -------------------------------------------------------------------------- */
+
+const SCHEMA_STATEMENTS = [
+  `CREATE TABLE IF NOT EXISTS artists (
+     id          INTEGER PRIMARY KEY AUTOINCREMENT,
+     name        TEXT    NOT NULL,
+     sort_name   TEXT,
+     country     TEXT,
+     image_url   TEXT,
+     notes       TEXT,
+     created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+     updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+   )`,
+  `CREATE TABLE IF NOT EXISTS albums (
+     id           INTEGER PRIMARY KEY AUTOINCREMENT,
+     artist_id    INTEGER NOT NULL REFERENCES artists(id) ON DELETE CASCADE,
+     title        TEXT    NOT NULL,
+     release_year INTEGER,
+     cover_url    TEXT,
+     label        TEXT,
+     notes        TEXT,
+     created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+     updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+   )`,
+  `CREATE TABLE IF NOT EXISTS versions (
+     id            INTEGER PRIMARY KEY AUTOINCREMENT,
+     album_id      INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+     name          TEXT    NOT NULL,
+     cover_url     TEXT,
+     color         TEXT,
+     color_hex     TEXT,
+     is_limited    INTEGER NOT NULL DEFAULT 0 CHECK (is_limited IN (0,1)),
+     is_exclusive  INTEGER NOT NULL DEFAULT 0 CHECK (is_exclusive IN (0,1)),
+     exclusive_to  TEXT,
+     region        TEXT,
+     release_date  TEXT,
+     edition_size  INTEGER,
+     price         REAL,
+     currency      TEXT    DEFAULT 'USD',
+     buy_url       TEXT,
+     want          INTEGER NOT NULL DEFAULT 0 CHECK (want IN (0,1)),
+     owned         INTEGER NOT NULL DEFAULT 0 CHECK (owned IN (0,1)),
+     notes         TEXT,
+     created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+     updated_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+   )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_artists_name   ON artists(name)`,
+  `CREATE INDEX IF NOT EXISTS idx_albums_artist         ON albums(artist_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_versions_album        ON versions(album_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_versions_want         ON versions(want)`,
+  `CREATE INDEX IF NOT EXISTS idx_versions_owned        ON versions(owned)`,
+  `CREATE INDEX IF NOT EXISTS idx_versions_region       ON versions(region)`,
+];
+
+async function runSetup(env, { seed = false } = {}) {
+  for (const sql of SCHEMA_STATEMENTS) await query(env, sql);
+
+  const { rows } = await query(env,
+    `SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name`);
+  const tables = rows.map((r) => r.name);
+
+  let seeded = false;
+  if (seed) {
+    const { rows: c } = await query(env, 'SELECT COUNT(*) AS n FROM artists');
+    if (c[0].n === 0) {
+      const artist = await query(env,
+        `INSERT INTO artists (name, country, notes) VALUES (?, ?, ?)`,
+        ['Taylor Swift', 'US', '範例資料，可以直接刪掉']);
+      const album = await query(env,
+        `INSERT INTO albums (artist_id, title, release_year, label) VALUES (?, ?, ?, ?)`,
+        [artist.lastInsertRowid, 'Midnights', 2022, 'Republic']);
+      await query(env,
+        `INSERT INTO versions (album_id, name, color, color_hex, is_limited, is_exclusive,
+                               exclusive_to, region, release_date, edition_size, price, currency, want)
+         VALUES (?, ?, ?, ?, 1, 1, ?, ?, ?, ?, ?, ?, 1)`,
+        [album.lastInsertRowid, 'Jade Green Edition', 'Jade Green', '#4F7A5C',
+         'Official Store', 'US', '2022-10-21', 5000, 34.99, 'USD']);
+      await query(env,
+        `INSERT INTO versions (album_id, name, color, color_hex, is_limited, region,
+                               release_date, price, currency, owned)
+         VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, 1)`,
+        [album.lastInsertRowid, 'Blood Moon Edition', 'Marbled Red', '#8E2F2F',
+         'UK', '2022-10-21', 32.0, 'GBP']);
+      seeded = true;
+    }
+  }
+
+  return {
+    ok: true,
+    message: seeded
+      ? '資料表已建立，並加入了範例資料。回到 App 重新整理就看得到了。'
+      : '資料表已建立完成，可以開始使用了。',
+    tables,
+    seeded,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
 /* 路由處理                                                                    */
 /* -------------------------------------------------------------------------- */
 
@@ -244,6 +344,19 @@ async function handle(request, env) {
       catch (e) { db = `error: ${e.message}`; }
     }
     return { service: 'vinylvault-api', ok: db === 'ok', configured, db };
+  }
+
+  /* ---- setup：建立資料表（可用手機瀏覽器直接開） ---- */
+  if (resource === 'setup') {
+    if (method !== 'GET' && method !== 'POST') throw new HttpError(404, 'Not found');
+    // GET 也要驗證：手機用網址列時可用 ?token=<WRITE_TOKEN>
+    if (env.WRITE_TOKEN) {
+      const header = (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
+      if (header !== env.WRITE_TOKEN && p.get('token') !== env.WRITE_TOKEN) {
+        throw new HttpError(401, 'Unauthorized');
+      }
+    }
+    return runSetup(env, { seed: p.get('seed') === '1' || p.get('seed') === 'true' });
   }
 
   /* ---- stats ---- */
