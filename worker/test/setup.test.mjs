@@ -83,3 +83,31 @@ test('自動建表後寫入也正常', async () => {
   assert.equal(list.length, 1);
   assert.equal(list[0].name, 'Daft Punk');
 });
+
+test('MusicBrainz 代理只放行查詢路徑', async () => {
+  const seen = [];
+  const inner = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('musicbrainz.org')) {
+      seen.push({ url: String(url), ua: init?.headers?.['User-Agent'] });
+      return new Response(JSON.stringify({ artists: [] }), { status: 200 });
+    }
+    return inner(url, init);
+  };
+  const w = (await import('../src/api.js')).default;
+  const call = (qs) => w.fetch(new Request('https://api.test/mb?path=' + encodeURIComponent(qs),
+    { headers: { Origin: 'https://example.com' } }), env);
+
+  const ok = await call('/artist?query=radiohead');
+  assert.equal(ok.status, 200);
+  assert.equal(ok.headers.get('Access-Control-Allow-Origin'), '*');
+  assert.match(seen[0].url, /^https:\/\/musicbrainz\.org\/ws\/2\/artist\?query=radiohead&fmt=json$/);
+  assert.match(seen[0].ua, /VinylVault/);
+
+  // 不能被拿來打其他網站
+  for (const bad of ['https://evil.example/x', '//evil.example/x', '/../../etc', '/label?query=x']) {
+    assert.equal((await call(bad)).status, 400, bad);
+  }
+  assert.equal(seen.length, 1);
+  globalThis.fetch = inner;
+});

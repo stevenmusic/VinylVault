@@ -16,6 +16,7 @@
  * 路由：
  *   GET    /                前端網頁本身（直接開這個網址就能用）
  *   GET    /health
+ *   GET    /mb?path=…            MusicBrainz 代理（避開瀏覽器跨網域限制）
  *   GET    /setup            建立資料表（?seed=1 順便加範例資料）
  *   GET    /artists                 ?q=&limit=&offset=
  *   POST   /artists
@@ -415,6 +416,26 @@ async function handle(request, env, assets) {
     return runSetup(env, { seed: p.get('seed') === '1' || p.get('seed') === 'true' });
   }
 
+  /* ---- MusicBrainz 代理：讓前端不受瀏覽器跨網域限制 ---- */
+  if (resource === 'mb' && method === 'GET') {
+    const target = p.get('path') ?? '';
+    // 只放行 MusicBrainz 的查詢路徑，避免變成任意網址的跳板
+    if (!/^\/(artist|release|release-group|recording)(\/[A-Za-z0-9-]+)?(\?[^#]*)?$/.test(target)) {
+      throw new HttpError(400, 'Unsupported MusicBrainz path');
+    }
+    const upstream = 'https://musicbrainz.org/ws/2' + target +
+      (target.includes('?') ? '&' : '?') + 'fmt=json';
+    const res = await fetch(upstream, {
+      headers: {
+        // MusicBrainz 要求帶上可辨識的 User-Agent
+        'User-Agent': 'VinylVault/1.0 (https://github.com/stevenmusic/VinylVault)',
+        'Accept': 'application/json',
+      },
+    });
+    const body = await res.text();
+    return { raw: body, type: 'application/json; charset=utf-8', status: res.status, cors: true };
+  }
+
   /* ---- stats ---- */
   if (resource === 'stats' && method === 'GET') {
     const { rows } = await query(env, `
@@ -691,7 +712,12 @@ export function createWorker(assets = null) {
       }
       if (result && typeof result === 'object' && 'raw' in result) {
         return new Response(result.raw, {
-          headers: { 'Content-Type': result.type, 'Cache-Control': 'no-cache' },
+          status: result.status ?? 200,
+          headers: {
+            'Content-Type': result.type,
+            'Cache-Control': 'no-cache',
+            ...(result.cors ? corsHeaders(request, env) : {}),
+          },
         });
       }
       if (result && typeof result === 'object' && 'status' in result && 'data' in result) {

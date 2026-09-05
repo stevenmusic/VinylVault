@@ -610,21 +610,46 @@ const CAA = 'https://coverartarchive.org';
 let mbChain = Promise.resolve();
 let mbLast = 0;
 
+/**
+ * 依序嘗試幾條路徑，只要有一條通就好：
+ *   1. 有設定 Worker 的話走自己的 Worker（最穩，不受瀏覽器跨網域限制）
+ *   2. 直接連 MusicBrainz
+ *   3. 公開的跨網域轉送服務（前兩條都被擋時的最後手段）
+ */
+function mbRoutes(query) {
+  const direct = MB + query;
+  const base = getBase();
+  const list = [];
+  if (base) list.push({ label: 'Worker', url: base + '/mb?path=' + encodeURIComponent(query) });
+  list.push({ label: '直連', url: direct });
+  list.push({ label: '轉送', url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(direct) });
+  return list;
+}
+
 function mbFetch(path) {
+  const query = path + (path.includes('?') ? '&' : '?') + 'fmt=json';
   const run = async () => {
     const wait = Math.max(0, 1100 - (Date.now() - mbLast));
     if (wait) await new Promise((r) => setTimeout(r, wait));
     mbLast = Date.now();
-    let res;
-    try {
-      res = await fetch(MB + path + (path.includes('?') ? '&' : '?') + 'fmt=json',
-        { headers: { Accept: 'application/json' } });
-    } catch (e) {
-      throw new Error('連不上 MusicBrainz（可能是網路或瀏覽器擋住了）：' + e.message);
+
+    const problems = [];
+    for (const route of mbRoutes(query)) {
+      try {
+        const res = await fetch(route.url, { headers: { Accept: 'application/json' } });
+        if (res.status === 503) { problems.push(route.label + '：對方忙碌中'); continue; }
+        if (!res.ok) { problems.push(route.label + '：HTTP ' + res.status); continue; }
+        const data = await res.json();
+        if (data && (data.error || data.message) && !data.artists && !data.releases && !data.media) {
+          problems.push(route.label + '：' + (data.error || data.message));
+          continue;
+        }
+        return data;
+      } catch (e) {
+        problems.push(route.label + '：' + (e.message || '連線失敗'));
+      }
     }
-    if (res.status === 503) throw new Error('MusicBrainz 忙碌中，請稍後再試');
-    if (!res.ok) throw new Error('MusicBrainz 回應 ' + res.status);
-    return res.json();
+    throw new Error('連不上音樂資料庫。' + problems.join('；'));
   };
   mbChain = mbChain.then(run, run);
   return mbChain;
@@ -1077,19 +1102,22 @@ async function viewHome() {
       '<button class="btn" data-go="#/collection">我的收藏</button>' +
       '<button class="btn" data-new-artist>+ 手動新增</button>' +
       '<button class="btn primary" data-import>⤓ 從資料庫匯入</button>') +
-    '<div class="toolbar"><div class="search"><input id="q" placeholder="搜尋歌手…" value="' + attr(state.q) + '"></div></div>' +
+    '<div class="toolbar"><div class="search"><input id="q" placeholder="搜尋我的收藏…" value="' + attr(state.q) + '"></div></div>' +
     '<div id="list">' + skeletons(8, 'artists') + '</div>';
   bind();
 
   const artists = await API.artists(state.q);
   const list = $('#list');
   if (!artists.length) {
-    list.innerHTML = emptyState(state.q ? '找不到符合的歌手' : '收藏庫還是空的',
-      state.q ? '換個關鍵字試試。'
-              : '輸入一位歌手，自動抓出他歷年來所有黑膠發行 —— 年份、地區、廠牌、Side A / Side B 曲目全都幫你填好。',
-      state.q ? '<button class="btn" data-new-artist>+ 手動新增</button>'
-              : '<button class="btn primary" data-import>⤓ 從資料庫匯入</button>' +
-                ' <button class="btn" data-new-artist>+ 手動新增</button>');
+    list.innerHTML = state.q
+      ? emptyState('你的收藏裡沒有「' + state.q + '」',
+          '這個搜尋框只找你已經收藏的歌手。要把新的歌手抓進來，用下面的線上資料庫。',
+          '<button class="btn primary" data-import-q="' + attr(state.q) + '">⤓ 到線上資料庫找「' + esc(state.q) + '」</button>' +
+          ' <button class="btn" data-new-artist>+ 手動新增</button>')
+      : emptyState('收藏庫還是空的',
+          '輸入一位歌手，自動抓出他歷年來所有黑膠發行 —— 年份、地區、廠牌、Side A / Side B 曲目全都幫你填好。',
+          '<button class="btn primary" data-import>⤓ 從資料庫匯入</button>' +
+          ' <button class="btn" data-new-artist>+ 手動新增</button>');
   } else {
     list.innerHTML = '<div class="grid artists">' + artists.map((a) =>
       '<div class="card artist-card">' +
@@ -1266,7 +1294,7 @@ function versionCard(v, showAlbumName) {
 /* ========================================================================== */
 /* 從 MusicBrainz 匯入                                                         */
 /* ========================================================================== */
-function openImport() {
+function openImport(initialQuery) {
   const m = openModal(
     '<h3>從資料庫匯入</h3>' +
     '<p class="hint">輸入歌手名字，自動抓出他歷年來所有黑膠發行 —— 發行年份、地區、廠牌、曲目全都有。資料來自 MusicBrainz（免費的公開音樂資料庫）。</p>' +
@@ -1412,6 +1440,7 @@ function openImport() {
 
   goBtn.onclick = search;
   q.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); search(); } };
+  if (initialQuery) { q.value = initialQuery; search(); }
 }
 
 /* ========================================================================== */
@@ -1507,7 +1536,10 @@ function bind() {
   });
   document.querySelectorAll('[data-settings]').forEach((el) => { el.onclick = openSettings; });
   document.querySelectorAll('[data-retry]').forEach((el) => { el.onclick = render; });
-  document.querySelectorAll('[data-import]').forEach((el) => { el.onclick = openImport; });
+  document.querySelectorAll('[data-import]').forEach((el) => { el.onclick = () => openImport(); });
+  document.querySelectorAll('[data-import-q]').forEach((el) => {
+    el.onclick = () => openImport(el.dataset.importQ);
+  });
   document.querySelectorAll('[data-tracks]').forEach((el) => {
     el.onclick = () => openTracks(JSON.parse(el.dataset.tracks));
   });
