@@ -273,6 +273,7 @@ label.fld > span{display:block;font-size:11.5px;letter-spacing:.14em;text-transf
     </button>
     <div class="top-spacer"></div>
     <div class="stat-pill" id="stats" hidden></div>
+    <button class="icon-btn" id="langBtn" title="Language / 語言" aria-label="Language">EN</button>
     <button class="icon-btn" id="settingsBtn" title="設定" aria-label="設定">⚙</button>
   </div>
 </header>
@@ -286,6 +287,189 @@ label.fld > span{display:block;font-size:11.5px;letter-spacing:.14em;text-transf
 <script>
 (() => {
 'use strict';
+
+/* ========================================================================== */
+/* 語言                                                                        */
+/* 跟 ScrollScore / SightScore / HarmonyMap / LoudMaster 共用同一把 key，       */
+/* 在任一工具切過語言，開這個也會延續。                                          */
+/* ========================================================================== */
+const LANG_KEY = 'sm_lang';
+let LANG = 'zh';
+try { LANG = localStorage.getItem(LANG_KEY) === 'en' ? 'en' : 'zh'; } catch { /* 隱私模式 */ }
+
+/** 英文字典。鍵就是中文原文，查不到時自動退回中文，不會出現空白。 */
+const EN = {
+  // 導覽與統計
+  '歌手': 'Artists', '專輯': 'Albums', '版本': 'Pressings', '曲目': 'Tracks',
+  '我的收藏': 'My collection', '所有版本': 'All pressings',
+  '設定': 'Settings', '語言': 'Language',
+  '點進歌手查看專輯與版本': 'Open an artist to see their albums and pressings',
+  '打幾個字就直接查線上資料庫，選一位就把他所有黑膠抓進來':
+    'Type a few letters to search the online database — pick an artist and every vinyl pressing comes with them',
+  '輸入歌手名字，打幾個字就好…': 'Artist name — a few letters is enough…',
+  '線上資料庫': 'Online database',
+  '線上資料庫 · 點一下抓進來': 'Online database · tap to import',
+  '搜尋「{0}」…': 'Searching for “{0}”…',
+  '找不到符合「{0}」的歌手。': 'No artist matching “{0}”.',
+  '抓取 →': 'Import →',
+  '查不到線上資料': 'Online lookup failed',
+
+  // 空狀態
+  '收藏庫還是空的': 'Your collection is empty',
+  '在上面打一位歌手的名字 —— 打幾個字就好。找到他之後，歷年來所有黑膠發行、年份、地區、廠牌、Side A / Side B 曲目都會自動抓進來。':
+    'Type an artist name above — a few letters is enough. Once you pick them, every vinyl release they have put out arrives with its year, region, label and Side A / Side B tracklist already filled in.',
+  '還沒有專輯': 'No albums yet',
+  '幫 {0} 加入第一張專輯。': 'Add the first album for {0}.',
+  '還沒有任何版本': 'No pressings yet',
+  '加入第一個版本：顏色、限量、地區、售價都可以記錄。':
+    'Add the first pressing — colour, limited run, region and price all get recorded.',
+  '沒有符合篩選的版本': 'No pressings match this filter',
+  '換個篩選條件看看。': 'Try a different filter.',
+  '清除篩選': 'Clear filter',
+  '回歌手列表': 'Back to artists',
+
+  // 篩選與卡片
+  '全部': 'All', '限量': 'Limited', '獨佔通路': 'Exclusive to',
+  '所有地區': 'All regions', '地區': 'Region',
+  '顏色': 'Colour', '規格': 'Format', '發行': 'Released', '編號': 'Cat. no.',
+  '張': '', '專輯': 'Albums', '已收': 'owned', '想要': 'wanted',
+  '購買': 'Buy', '編輯': 'Edit', '刪除': 'Delete',
+
+  // 動作
+  '+ 手動新增': '+ Add manually', '新增': 'Add', '儲存': 'Save', '取消': 'Cancel',
+  '關閉': 'Close', '重試': 'Retry', '搜尋': 'Search', '處理中…': 'Working…',
+  '新增歌手': 'Add artist', '新增專輯': 'Add album', '新增版本': 'Add pressing',
+  '{0} 張專輯': '{0} albums', '{0} 個版本': '{0} pressings',
+  '從 MusicBrainz 匯入': 'Imported from MusicBrainz',
+  '編輯歌手': 'Edit artist', '編輯專輯': 'Edit album', '編輯版本': 'Edit pressing',
+  '連線設定': 'Connection settings', '測試連線': 'Test connection',
+  '匯出備份': 'Export backup', '匯入備份': 'Import backup',
+
+  // 表單
+  '歌手 / 團體名稱': 'Artist / group name', '排序名稱': 'Sort name', '國家': 'Country',
+  '圖片網址': 'Image URL', '備註': 'Notes', '收藏庫的第一層': 'The top level of your collection',
+  '專輯名稱': 'Album title', '發行年份': 'Release year', '廠牌': 'Label', '封面網址': 'Cover URL',
+  '版本名稱': 'Pressing name', '唱片顏色': 'Record colour', '顏色色票': 'Colour swatch',
+  '發行日期': 'Release date', '限量張數': 'Edition size', '售價': 'Price', '幣別': 'Currency',
+  '廠牌編號': 'Catalogue number', '購買連結': 'Buy link',
+  '顏色、限量、地區、售價、購買連結': 'Colour, limited run, region, price, buy link',
+  'Limited 限量': 'Limited', 'Exclusive 獨佔': 'Exclusive',
+  '❤ Want 想要': '❤ Want', '✓ Owned 已擁有': '✓ Owned',
+  '{0} 為必填': '{0} is required',
+
+  // 匯入
+  '從資料庫匯入': 'Import from database',
+  '輸入歌手名字，自動抓出他歷年來所有黑膠發行 —— 發行年份、地區、廠牌、曲目全都有。資料來自 MusicBrainz（免費的公開音樂資料庫）。':
+    'Enter an artist and every vinyl release they have put out is pulled in — year, region, label and tracklist included. Data comes from MusicBrainz, a free public music database.',
+  '歌手名稱': 'Artist name',
+  '例：Radiohead、周杰倫、Taylor Swift': 'e.g. Radiohead, Taylor Swift',
+  '搜尋中…': 'Searching…',
+  '選一位：': 'Pick one:',
+  '找不到「{0}」，換個寫法試試（例如用英文原名）。': 'Nothing found for “{0}” — try another spelling.',
+  '正在抓 {0} 的黑膠發行…': 'Fetching {0}’s vinyl releases…',
+  '正在抓 {0} 的黑膠發行… 已找到 {1} 張': 'Fetching {0}’s vinyl releases… {1} found so far',
+  'MusicBrainz 上查不到 {0} 的黑膠發行。': 'MusicBrainz has no vinyl releases for {0}.',
+  '找到 {0} 張黑膠': '{0} vinyl releases found',
+  '，年份 {0}–{1}': ', {0}–{1}',
+  '同時抓取曲目（每張約 1 秒，{0} 張約 {1} 秒）':
+    'Fetch tracklists too (about 1 second each — {0} releases, roughly {1} seconds)',
+  '全部匯入 {0} 張': 'Import all {0}',
+  '建立歌手…': 'Creating artist…',
+  '匯入中… {0} / {1}': 'Importing… {0} / {1}',
+  '抓取曲目… {0} / {1}（可以先關掉，之後點版本也會自動抓）':
+    'Fetching tracklists… {0} / {1} (you can close this — they load on demand later)',
+  '已匯入 {0}：{1} 張專輯、{2} 個版本': 'Imported {0}: {1} albums, {2} pressings',
+  '出錯了': 'Something went wrong',
+  '載入曲目…': 'Loading tracks…',
+  '這個版本還沒有曲目資料。': 'No tracklist for this pressing yet.',
+  '抓不到曲目': 'Could not load tracks',
+  '黑膠': 'Vinyl',
+
+  // 設定
+  '目前是<b style="color:var(--gold)">本機模式</b>：資料存在這台裝置的瀏覽器裡，不用任何帳號就能用，但不會跟其他裝置同步。':
+    'You are in <b style="color:var(--gold)">local mode</b>: data lives in this browser. No account needed, but it does not sync to your other devices.',
+  '目前是<b style="color:var(--gold)">雲端模式</b>：資料存在你的資料庫，手機與電腦共用同一份。':
+    'You are in <b style="color:var(--gold)">cloud mode</b>: data lives in your own database and is shared across your devices.',
+  'API 網址（留空 = 本機模式）': 'API URL (leave empty for local mode)',
+  '寫入權杖（選填）': 'Write token (optional)',
+  'Worker 沒設定保護就留空': 'Leave empty unless your Worker sets one',
+  '本機資料的備份 —— 換手機或清除瀏覽器資料前記得匯出。':
+    'Back up local data — export before switching phones or clearing browser data.',
+  '網址留空 = 本機模式，不需要連線。': 'Empty URL means local mode — no connection needed.',
+  '✓ 連線成功，資料庫正常': '✓ Connected, database healthy',
+  '✕ 有回應，但資料庫異常：{0}': '✕ Responded, but the database is not ready: {0}',
+  '✕ 連不上：{0}': '✕ Cannot connect: {0}',
+  '測試中…': 'Testing…',
+  '未設定 Turso 環境變數': 'Turso environment variables are not set',
+  '設定已儲存': 'Settings saved',
+  '備份已下載': 'Backup downloaded',
+  '已匯入備份': 'Backup imported',
+  '這不是 VinylVault 的備份檔': 'That is not a VinylVault backup file',
+
+  // 提示訊息
+  '已新增歌手': 'Artist added', '已新增專輯': 'Album added', '已新增版本': 'Pressing added',
+  '已更新': 'Updated', '已刪除': 'Deleted',
+  '已加入想要': 'Added to wanted', '已移除想要': 'Removed from wanted',
+  '已標記擁有': 'Marked as owned', '已取消擁有': 'No longer marked as owned',
+  '確認刪除': 'Confirm deletion',
+  '刪除「{0}」會同時刪掉底下所有專輯與版本，確定嗎？':
+    'Deleting “{0}” also removes every album and pressing under it. Continue?',
+  '刪除「{0}」會同時刪掉底下所有版本，確定嗎？':
+    'Deleting “{0}” also removes every pressing under it. Continue?',
+  '確定刪除版本「{0}」？': 'Delete the pressing “{0}”?',
+
+  // 表單範例
+  '例：Radiohead': 'e.g. Radiohead',
+  '例：UK': 'e.g. UK',
+  '例：In Rainbows': 'e.g. In Rainbows',
+  '例：XL Recordings': 'e.g. XL Recordings',
+  '例：Gold Nugget LP': 'e.g. Gold Nugget LP',
+  '例：Translucent Gold': 'e.g. Translucent Gold',
+  '例：US / UK / JP / TW': 'e.g. US / UK / JP / TW',
+  '例：Target': 'e.g. Target',
+  '例：12" Vinyl': 'e.g. 12" Vinyl',
+  '例：XLLP324': 'e.g. XLLP324',
+
+  // 錯誤
+  '載入失敗': 'Could not load',
+  '資料庫還沒有建立資料表': 'The database has no tables yet',
+  '按下面的按鈕，Worker 會自動幫你建好 artists / albums / versions 三張表。':
+    'Tap below and the Worker will create the artists / albums / versions tables for you.',
+  '建立資料表': 'Create tables', '建立並加入範例資料': 'Create with sample data',
+  '資料表已建立': 'Tables created',
+  '尚未設定 API 網址': 'No API URL configured',
+  '連線失敗，請確認 API 網址與 Worker 的 CORS 設定（{0}）':
+    'Connection failed — check the API URL and the Worker’s CORS settings ({0})',
+  '連不上音樂資料庫。{0}': 'Cannot reach the music database. {0}',
+  '連線失敗': 'connection failed',
+  '直連': 'direct', '轉送': 'relay', '：對方忙碌中': ': service busy',
+  '找不到這位歌手': 'Artist not found', '找不到這張專輯': 'Album not found',
+  '找不到這個版本': 'Pressing not found',
+  '缺少歌手': 'Artist is missing', '缺少專輯': 'Album is missing',
+  '歌手名稱為必填': 'Artist name is required',
+  '專輯名稱為必填': 'Album title is required',
+  '版本名稱為必填': 'Pressing name is required',
+  '無法儲存到這台裝置（可能是儲存空間已滿）：{0}':
+    'Could not save to this device (storage may be full): {0}',
+};
+
+/** 翻譯。{0}、{1} 會依序代入後面的參數。 */
+function t(zh, ...args) {
+  let out = LANG === 'en' ? (EN[zh] ?? zh) : zh;
+  args.forEach((v, i) => { out = out.split('{' + i + '}').join(String(v)); });
+  return out;
+}
+
+function setLang(lang) {
+  LANG = lang === 'en' ? 'en' : 'zh';
+  try { localStorage.setItem(LANG_KEY, LANG); } catch { /* 隱私模式 */ }
+  document.documentElement.lang = LANG === 'en' ? 'en' : 'zh-Hant';
+  const btn = document.getElementById('langBtn');
+  if (btn) btn.textContent = LANG === 'en' ? '中' : 'EN';
+  const gear = document.getElementById('settingsBtn');
+  if (gear) { gear.title = t('設定'); gear.setAttribute('aria-label', t('設定')); }
+  render();
+}
 
 /* ========================================================================== */
 /* 設定                                                                        */
@@ -304,7 +488,7 @@ const getToken = () => localStorage.getItem(LS.token) || CFG.writeToken || '';
 /* ========================================================================== */
 async function api(path, { method = 'GET', body } = {}) {
   const base = getBase();
-  if (!base) throw new Error('尚未設定 API 網址');
+  if (!base) throw new Error(t('尚未設定 API 網址'));
   const headers = {};
   if (body) headers['Content-Type'] = 'application/json';
   const token = getToken();
@@ -314,7 +498,7 @@ async function api(path, { method = 'GET', body } = {}) {
   try {
     res = await fetch(base + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
   } catch (e) {
-    throw new Error('連線失敗，請確認 API 網址與 Worker 的 CORS 設定（' + e.message + '）');
+    throw new Error(t('連線失敗，請確認 API 網址與 Worker 的 CORS 設定（{0}）', e.message));
   }
   const text = await res.text();
   let data = null;
@@ -365,7 +549,7 @@ function load() {
 
 function save(d) {
   try { localStorage.setItem(DB_KEY, JSON.stringify(d)); }
-  catch (e) { throw new Error('無法儲存到這台裝置（可能是儲存空間已滿）：' + e.message); }
+  catch (e) { throw new Error(t('無法儲存到這台裝置（可能是儲存空間已滿）：{0}', e.message)); }
 }
 
 const nowStamp = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
@@ -458,13 +642,13 @@ const Local = {
 
   async artist(id) {
     const a = byId(load().artists, id);
-    if (!a) throw new Error('找不到這位歌手');
+    if (!a) throw new Error(t('找不到這位歌手'));
     return clone(a);
   },
 
   async createArtist(body) {
     const d = load();
-    if (!strOrNull(body.name)) throw new Error('歌手名稱為必填');
+    if (!strOrNull(body.name)) throw new Error(t('歌手名稱為必填'));
     const row = apply({ id: ++d.seq, created_at: nowStamp() }, body, F_ARTIST);
     d.artists.push(row); save(d);
     return clone(row);
@@ -502,14 +686,14 @@ const Local = {
   async album(id) {
     const d = load();
     const al = byId(d.albums, id);
-    if (!al) throw new Error('找不到這張專輯');
+    if (!al) throw new Error(t('找不到這張專輯'));
     return decorateAlbum(d, al);
   },
 
   async createAlbum(body) {
     const d = load();
-    if (intOrNull(body.artist_id) === null) throw new Error('缺少歌手');
-    if (!strOrNull(body.title)) throw new Error('專輯名稱為必填');
+    if (intOrNull(body.artist_id) === null) throw new Error(t('缺少歌手'));
+    if (!strOrNull(body.title)) throw new Error(t('專輯名稱為必填'));
     const row = apply({ id: ++d.seq, created_at: nowStamp() }, body, F_ALBUM);
     d.albums.push(row); save(d);
     return clone(row);
@@ -557,8 +741,8 @@ const Local = {
 
   async createVersion(body) {
     const d = load();
-    if (intOrNull(body.album_id) === null) throw new Error('缺少專輯');
-    if (!strOrNull(body.name)) throw new Error('版本名稱為必填');
+    if (intOrNull(body.album_id) === null) throw new Error(t('缺少專輯'));
+    if (!strOrNull(body.name)) throw new Error(t('版本名稱為必填'));
     const row = apply({ id: ++d.seq, created_at: nowStamp(), currency: 'USD' }, body, F_VERSION);
     d.versions.push(row); save(d);
     return clone(row);
@@ -567,7 +751,7 @@ const Local = {
   async updateVersion(id, body) {
     const d = load();
     const v = byId(d.versions, id);
-    if (!v) throw new Error('找不到這個版本');
+    if (!v) throw new Error(t('找不到這個版本'));
     apply(v, body, F_VERSION); save(d);
     return clone(v);
   },
@@ -636,8 +820,8 @@ function mbRoutes(query) {
   const base = getBase();
   const list = [];
   if (base) list.push({ label: 'Worker', url: base + '/mb?path=' + encodeURIComponent(query) });
-  list.push({ label: '直連', url: direct });
-  list.push({ label: '轉送', url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(direct) });
+  list.push({ label: t('直連'), url: direct });
+  list.push({ label: t('轉送'), url: 'https://api.allorigins.win/raw?url=' + encodeURIComponent(direct) });
   return list;
 }
 
@@ -652,7 +836,7 @@ function mbFetch(path) {
     for (const route of mbRoutes(query)) {
       try {
         const res = await fetch(route.url, { headers: { Accept: 'application/json' } });
-        if (res.status === 503) { problems.push(route.label + '：對方忙碌中'); continue; }
+        if (res.status === 503) { problems.push(route.label + t('：對方忙碌中')); continue; }
         if (!res.ok) { problems.push(route.label + '：HTTP ' + res.status); continue; }
         const data = await res.json();
         if (data && (data.error || data.message) && !data.artists && !data.releases && !data.media) {
@@ -661,10 +845,10 @@ function mbFetch(path) {
         }
         return data;
       } catch (e) {
-        problems.push(route.label + '：' + (e.message || '連線失敗'));
+        problems.push(route.label + '：' + (e.message || t('連線失敗')));
       }
     }
-    throw new Error('連不上音樂資料庫。' + problems.join('；'));
+    throw new Error(t('連不上音樂資料庫。{0}', problems.join('；')));
   };
   mbChain = mbChain.then(run, run);
   return mbChain;
@@ -823,7 +1007,7 @@ function openModal(html) {
  * 依欄位定義產生表單。
  * fields: [{ key, label, type, options?, placeholder?, required?, half? }]
  */
-function formModal({ title, hint, fields, values = {}, submitLabel = '儲存', onSubmit }) {
+function formModal({ title, hint, fields, values = {}, submitLabel = t('儲存'), onSubmit }) {
   const render = (f) => {
     const v = values[f.key];
     const id = 'f_' + f.key;
@@ -858,7 +1042,7 @@ function formModal({ title, hint, fields, values = {}, submitLabel = '儲存', o
       (checks.length ? '<div class="checks">' + checks.map((f) =>
         '<label><input type="checkbox" name="' + f.key + '"' + (values[f.key] ? ' checked' : '') + '>' + esc(f.label) + '</label>').join('') + '</div>' : '') +
       '<div class="modal-foot">' +
-        '<button type="button" class="btn ghost" data-close>取消</button>' +
+        '<button type="button" class="btn ghost" data-close>' + t('取消') + '</button>' +
         '<button type="submit" class="btn primary">' + esc(submitLabel) + '</button>' +
       '</div>' +
     '</form>';
@@ -875,11 +1059,11 @@ function formModal({ title, hint, fields, values = {}, submitLabel = '儲存', o
       if (!input) continue;
       if (f.type === 'check') { out[f.key] = input.checked ? 1 : 0; continue; }
       const raw = String(input.value ?? '').trim();
-      if (f.required && !raw) { toast(f.label + ' 為必填', true); input.focus(); return; }
+      if (f.required && !raw) { toast(t('{0} 為必填', f.label), true); input.focus(); return; }
       out[f.key] = raw === '' ? null : (f.type === 'number' ? Number(raw) : raw);
     }
     const btn = form.querySelector('button[type=submit]');
-    btn.disabled = true; btn.textContent = '處理中…';
+    btn.disabled = true; btn.textContent = t('處理中…');
     try {
       await onSubmit(out);
       m.close();
@@ -893,9 +1077,9 @@ function formModal({ title, hint, fields, values = {}, submitLabel = '儲存', o
 
 function confirmModal(text, onYes) {
   const m = openModal(
-    '<h3>確認刪除</h3><p class="hint">' + esc(text) + '</p>' +
-    '<div class="modal-foot"><button class="btn ghost" data-no>取消</button>' +
-    '<button class="btn danger" data-yes style="border-color:var(--danger);color:#E0836D">刪除</button></div>');
+    '<h3>' + t('確認刪除') + '</h3><p class="hint">' + esc(text) + '</p>' +
+    '<div class="modal-foot"><button class="btn ghost" data-no>' + t('取消') + '</button>' +
+    '<button class="btn danger" data-yes style="border-color:var(--danger);color:#E0836D">' + t('刪除') + '</button></div>');
   m.el.querySelector('[data-no]').onclick = m.close;
   m.el.querySelector('[data-yes]').onclick = async () => {
     try { await onYes(); m.close(); } catch (e) { toast(e.message, true); }
@@ -908,28 +1092,28 @@ function confirmModal(text, onYes) {
 function openSettings() {
   const local = isLocal();
   const m = openModal(
-    '<h3>設定</h3>' +
+    '<h3>' + t('設定') + '</h3>' +
     '<p class="hint">' + (local
-      ? '目前是<b style="color:var(--gold)">本機模式</b>：資料存在這台裝置的瀏覽器裡，不用任何帳號就能用，但不會跟其他裝置同步。'
-      : '目前是<b style="color:var(--gold)">雲端模式</b>：資料存在你的資料庫，手機與電腦共用同一份。') + '</p>' +
-    '<label class="fld"><span>API 網址（留空 = 本機模式）</span>' +
+      ? t('目前是<b style="color:var(--gold)">本機模式</b>：資料存在這台裝置的瀏覽器裡，不用任何帳號就能用，但不會跟其他裝置同步。')
+      : t('目前是<b style="color:var(--gold)">雲端模式</b>：資料存在你的資料庫，手機與電腦共用同一份。')) + '</p>' +
+    '<label class="fld"><span>' + t('API 網址（留空 = 本機模式）') + '</span>' +
       '<input id="sBase" placeholder="https://…workers.dev" value="' + attr(getBase()) + '"></label>' +
-    '<label class="fld"><span>寫入權杖（選填）</span>' +
-      '<input id="sToken" type="password" placeholder="Worker 沒設定保護就留空" value="' + attr(getToken()) + '"></label>' +
+    '<label class="fld"><span>' + t('寫入權杖（選填）') + '</span>' +
+      '<input id="sToken" type="password" placeholder="' + attr(t('Worker 沒設定保護就留空')) + '" value="' + attr(getToken()) + '"></label>' +
     '<div id="sTest" class="hint"></div>' +
     (local
       ? '<div style="border-top:1px solid var(--line);margin:18px 0 14px;padding-top:16px">' +
-        '<p class="hint" style="margin-bottom:10px">本機資料的備份 —— 換手機或清除瀏覽器資料前記得匯出。</p>' +
+        '<p class="hint" style="margin-bottom:10px">' + t('本機資料的備份 —— 換手機或清除瀏覽器資料前記得匯出。') + '</p>' +
         '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-          '<button class="btn sm" id="sExport">匯出備份</button>' +
-          '<button class="btn sm" id="sImport">匯入備份</button>' +
+          '<button class="btn sm" id="sExport">' + t('匯出備份') + '</button>' +
+          '<button class="btn sm" id="sImport">' + t('匯入備份') + '</button>' +
           '<input type="file" id="sFile" accept="application/json,.json" hidden>' +
         '</div></div>'
       : '') +
     '<div class="modal-foot">' +
-      '<button class="btn ghost" data-close>取消</button>' +
-      '<button class="btn" id="sPing">測試連線</button>' +
-      '<button class="btn primary" id="sSave">儲存</button>' +
+      '<button class="btn ghost" data-close>' + t('取消') + '</button>' +
+      '<button class="btn" id="sPing">' + t('測試連線') + '</button>' +
+      '<button class="btn primary" id="sSave">' + t('儲存') + '</button>' +
     '</div>');
 
   const baseEl = m.el.querySelector('#sBase');
@@ -939,15 +1123,15 @@ function openSettings() {
 
   m.el.querySelector('#sPing').onclick = async () => {
     const url = baseEl.value.trim().replace(/\/+$/, '');
-    if (!url) { out.innerHTML = '<span style="color:var(--muted)">網址留空 = 本機模式，不需要連線。</span>'; return; }
-    out.textContent = '測試中…';
+    if (!url) { out.innerHTML = '<span style="color:var(--muted)">' + t('網址留空 = 本機模式，不需要連線。') + '</span>'; return; }
+    out.textContent = t('測試中…');
     try {
       const j = await (await fetch(url + '/health')).json();
       out.innerHTML = j.ok
-        ? '<span style="color:var(--ok)">✓ 連線成功，資料庫正常</span>'
-        : '<span style="color:var(--danger)">✕ 有回應，但資料庫異常：' + esc(j.db || '未設定 Turso 環境變數') + '</span>';
+        ? '<span style="color:var(--ok)">' + t('✓ 連線成功，資料庫正常') + '</span>'
+        : '<span style="color:var(--danger)">' + esc(t('✕ 有回應，但資料庫異常：{0}', j.db || t('未設定 Turso 環境變數'))) + '</span>';
     } catch (e) {
-      out.innerHTML = '<span style="color:var(--danger)">✕ 連不上：' + esc(e.message) + '</span>';
+      out.innerHTML = '<span style="color:var(--danger)">' + esc(t('✕ 連不上：{0}', e.message)) + '</span>';
     }
   };
 
@@ -961,7 +1145,7 @@ function openSettings() {
       a.download = 'vinylvault-' + new Date().toISOString().slice(0, 10) + '.json';
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-      toast('備份已下載');
+      toast(t('備份已下載'));
     };
     const fileEl = m.el.querySelector('#sFile');
     m.el.querySelector('#sImport').onclick = () => fileEl.click();
@@ -970,10 +1154,10 @@ function openSettings() {
       if (!f) return;
       try {
         const data = JSON.parse(await f.text());
-        if (!Array.isArray(data.artists)) throw new Error('這不是 VinylVault 的備份檔');
+        if (!Array.isArray(data.artists)) throw new Error(t('這不是 VinylVault 的備份檔'));
         save({ artists: data.artists, albums: data.albums || [], versions: data.versions || [],
                seq: data.seq || 0 });
-        m.close(); toast('已匯入備份'); render();
+        m.close(); toast(t('已匯入備份')); render();
       } catch (e) { toast(e.message, true); }
     };
   }
@@ -982,12 +1166,16 @@ function openSettings() {
     localStorage.setItem(LS.base, baseEl.value.trim().replace(/\/+$/, ''));
     localStorage.setItem(LS.token, tokEl.value.trim());
     m.close();
-    toast('設定已儲存');
+    toast(t('設定已儲存'));
     render();
   };
 }
 
 $('#settingsBtn').onclick = openSettings;
+$('#langBtn').onclick = () => setLang(LANG === 'en' ? 'zh' : 'en');
+// 開頁時把按鈕與 <html lang> 對到已儲存的偏好（setLang 會 render，這裡不能直接呼叫）
+document.documentElement.lang = LANG === 'en' ? 'en' : 'zh-Hant';
+$('#langBtn').textContent = LANG === 'en' ? '中' : 'EN';
 $('#brand').onclick = () => go('#/');
 
 /* ========================================================================== */
@@ -1019,20 +1207,20 @@ function errorState(err) {
   const needsSetup = /no such table|no such column/i.test(err.message);
   return '<div class="err">' +
     (needsSetup
-      ? '<b>資料庫還沒有建立資料表</b><p style="margin:0 0 4px">按下面的按鈕，Worker 會自動幫你建好 artists / albums / versions 三張表。</p>'
-      : '<b>載入失敗</b>') +
+      ? '<b>' + t('資料庫還沒有建立資料表') + '</b><p style="margin:0 0 4px">' + t('按下面的按鈕，Worker 會自動幫你建好 artists / albums / versions 三張表。') + '</p>'
+      : '<b>' + t('載入失敗') + '</b>') +
     '<code>' + esc(err.message) + '</code>' +
     '<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">' +
-    (needsSetup ? '<button class="btn sm primary" data-setup>建立資料表</button>' +
-                  '<button class="btn sm" data-setup-seed>建立並加入範例資料</button>' : '') +
-    '<button class="btn sm" data-retry>重試</button>' +
-    '<button class="btn sm" data-settings>連線設定</button></div></div>';
+    (needsSetup ? '<button class="btn sm primary" data-setup>' + t('建立資料表') + '</button>' +
+                  '<button class="btn sm" data-setup-seed>' + t('建立並加入範例資料') + '</button>' : '') +
+    '<button class="btn sm" data-retry>' + t('重試') + '</button>' +
+    '<button class="btn sm" data-settings>' + t('連線設定') + '</button></div></div>';
 }
 
 async function runSetup(seed) {
   try {
     const r = await api('/setup' + (seed ? '?seed=1' : ''), { method: 'POST' });
-    toast(r.message || '資料表已建立');
+    toast(r.message || t('資料表已建立'));
     render();
   } catch (e) { toast(e.message, true); }
 }
@@ -1041,40 +1229,40 @@ async function runSetup(seed) {
 /* 表單定義                                                                    */
 /* ========================================================================== */
 const artistFields = [
-  { key: 'name', label: '歌手 / 團體名稱', required: true, placeholder: '例：Radiohead' },
-  { key: 'sort_name', label: '排序名稱', half: true, placeholder: '例：Radiohead' },
-  { key: 'country', label: '國家', half: true, placeholder: '例：UK' },
-  { key: 'image_url', label: '圖片網址', placeholder: 'https://…' },
-  { key: 'notes', label: '備註', type: 'textarea' },
+  { key: 'name', label: t('歌手 / 團體名稱'), required: true, placeholder: t('例：Radiohead') },
+  { key: 'sort_name', label: t('排序名稱'), half: true, placeholder: t('例：Radiohead') },
+  { key: 'country', label: t('國家'), half: true, placeholder: t('例：UK') },
+  { key: 'image_url', label: t('圖片網址'), placeholder: t('https://…') },
+  { key: 'notes', label: t('備註'), type: 'textarea' },
 ];
 
 const albumFields = [
-  { key: 'title', label: '專輯名稱', required: true, placeholder: '例：In Rainbows' },
-  { key: 'release_year', label: '發行年份', type: 'number', half: true, placeholder: '2007' },
-  { key: 'label', label: '廠牌', half: true, placeholder: '例：XL Recordings' },
-  { key: 'cover_url', label: '封面網址', placeholder: 'https://…' },
-  { key: 'notes', label: '備註', type: 'textarea' },
+  { key: 'title', label: t('專輯名稱'), required: true, placeholder: t('例：In Rainbows') },
+  { key: 'release_year', label: t('發行年份'), type: 'number', half: true, placeholder: t('2007') },
+  { key: 'label', label: t('廠牌'), half: true, placeholder: t('例：XL Recordings') },
+  { key: 'cover_url', label: t('封面網址'), placeholder: t('https://…') },
+  { key: 'notes', label: t('備註'), type: 'textarea' },
 ];
 
 const versionFields = [
-  { key: 'name', label: '版本名稱', required: true, placeholder: '例：Gold Nugget LP' },
-  { key: 'cover_url', label: '封面網址', placeholder: 'https://…' },
-  { key: 'color', label: '唱片顏色', half: true, placeholder: '例：Translucent Gold' },
-  { key: 'color_hex', label: '顏色色票', type: 'color', half: true },
-  { key: 'region', label: '地區', half: true, placeholder: '例：US / UK / JP / TW' },
-  { key: 'release_date', label: '發行日期', type: 'date', half: true },
-  { key: 'edition_size', label: '限量張數', type: 'number', half: true, placeholder: '5000' },
-  { key: 'exclusive_to', label: '獨佔通路', half: true, placeholder: '例：Target' },
-  { key: 'price', label: '售價', type: 'number', half: true, placeholder: '34.99' },
-  { key: 'currency', label: '幣別', half: true, placeholder: 'USD' },
-  { key: 'format', label: '規格', half: true, placeholder: '例：12" Vinyl' },
-  { key: 'catalog_no', label: '廠牌編號', half: true, placeholder: '例：XLLP324' },
-  { key: 'buy_url', label: '購買連結', placeholder: 'https://…' },
-  { key: 'notes', label: '備註', type: 'textarea' },
-  { key: 'is_limited', label: 'Limited 限量', type: 'check' },
-  { key: 'is_exclusive', label: 'Exclusive 獨佔', type: 'check' },
-  { key: 'want', label: '❤ Want 想要', type: 'check' },
-  { key: 'owned', label: '✓ Owned 已擁有', type: 'check' },
+  { key: 'name', label: t('版本名稱'), required: true, placeholder: t('例：Gold Nugget LP') },
+  { key: 'cover_url', label: t('封面網址'), placeholder: t('https://…') },
+  { key: 'color', label: t('唱片顏色'), half: true, placeholder: t('例：Translucent Gold') },
+  { key: 'color_hex', label: t('顏色色票'), type: 'color', half: true },
+  { key: 'region', label: t('地區'), half: true, placeholder: t('例：US / UK / JP / TW') },
+  { key: 'release_date', label: t('發行日期'), type: 'date', half: true },
+  { key: 'edition_size', label: t('限量張數'), type: 'number', half: true, placeholder: t('5000') },
+  { key: 'exclusive_to', label: t('獨佔通路'), half: true, placeholder: t('例：Target') },
+  { key: 'price', label: t('售價'), type: 'number', half: true, placeholder: t('34.99') },
+  { key: 'currency', label: t('幣別'), half: true, placeholder: t('USD') },
+  { key: 'format', label: t('規格'), half: true, placeholder: t('例：12" Vinyl') },
+  { key: 'catalog_no', label: t('廠牌編號'), half: true, placeholder: t('例：XLLP324') },
+  { key: 'buy_url', label: t('購買連結'), placeholder: t('https://…') },
+  { key: 'notes', label: t('備註'), type: 'textarea' },
+  { key: 'is_limited', label: t('Limited 限量'), type: 'check' },
+  { key: 'is_exclusive', label: t('Exclusive 獨佔'), type: 'check' },
+  { key: 'want', label: t('❤ Want 想要'), type: 'check' },
+  { key: 'owned', label: t('✓ Owned 已擁有'), type: 'check' },
 ];
 
 /* ========================================================================== */
@@ -1111,9 +1299,9 @@ async function refreshStats() {
   try {
     const s = await API.stats();
     el.innerHTML =
-      '<span>歌手 <b>' + s.artists + '</b></span>' +
-      '<span>專輯 <b>' + s.albums + '</b></span>' +
-      '<span>版本 <b>' + s.versions + '</b></span>' +
+      '<span>' + t('歌手') + ' <b>' + s.artists + '</b></span>' +
+      '<span>' + t('專輯') + ' <b>' + s.albums + '</b></span>' +
+      '<span>' + t('版本') + ' <b>' + s.versions + '</b></span>' +
       '<span>❤ <b>' + s.want + '</b></span>' +
       '<span>✓ <b>' + s.owned + '</b></span>';
     el.hidden = false;
@@ -1131,23 +1319,23 @@ const artistGridHtml = (artists) =>
       '<div class="body">' +
         '<h3><button style="all:unset;cursor:pointer" data-go="#/artist/' + a.id + '">' + esc(a.name) + '</button></h3>' +
         (a.country ? '<div class="meta">' + esc(a.country) + '</div>' : '') +
-        '<div class="count-row"><span><b>' + a.album_count + '</b> 專輯</span>' +
-          '<span><b>' + a.version_count + '</b> 版本</span>' +
-          '<span><b>' + a.owned_count + '</b> 已收</span></div>' +
+        '<div class="count-row"><span><b>' + a.album_count + '</b> ' + t('專輯') + '</span>' +
+          '<span><b>' + a.version_count + '</b> ' + t('版本') + '</span>' +
+          '<span><b>' + a.owned_count + '</b> ' + t('已收') + '</span></div>' +
         '<div class="actions"><div class="card-menu">' +
-          '<button class="mini" data-edit-artist=\'' + attr(JSON.stringify(a)) + '\' title="編輯">✎</button>' +
-          '<button class="mini del" data-del-artist="' + a.id + '" data-name="' + attr(a.name) + '" title="刪除">🗑</button>' +
+          '<button class="mini" data-edit-artist=\'' + attr(JSON.stringify(a)) + '\' title="' + attr(t('編輯')) + '">✎</button>' +
+          '<button class="mini del" data-del-artist="' + a.id + '" data-name="' + attr(a.name) + '" title="' + attr(t('刪除')) + '">🗑</button>' +
         '</div></div>' +
       '</div>' +
     '</div>').join('') + '</div>';
 
 async function viewHome() {
-  app.innerHTML = crumbs([{ label: '歌手' }]) +
-    pageHead('Collection', '歌手', '打幾個字就直接查線上資料庫，選一位就把他所有黑膠抓進來',
-      '<button class="btn" data-go="#/collection">我的收藏</button>' +
-      '<button class="btn" data-new-artist>+ 手動新增</button>') +
+  app.innerHTML = crumbs([{ label: t('歌手') }]) +
+    pageHead('Collection', t('歌手'), t('打幾個字就直接查線上資料庫，選一位就把他所有黑膠抓進來'),
+      '<button class="btn" data-go="#/collection">' + t('我的收藏') + '</button>' +
+      '<button class="btn" data-new-artist>' + t('+ 手動新增') + '</button>') +
     '<div class="toolbar"><div class="search">' +
-      '<input id="q" placeholder="輸入歌手名字，打幾個字就好…" value="' + attr(state.q) + '" autocomplete="off"></div></div>' +
+      '<input id="q" placeholder="' + attr(t('輸入歌手名字，打幾個字就好…')) + '" value="' + attr(state.q) + '" autocomplete="off"></div></div>' +
     '<div id="list">' + skeletons(6, 'artists') + '</div>' +
     '<div id="online"></div>';
   bind();
@@ -1164,10 +1352,10 @@ async function refreshHome() {
   if (!$('#list')) return;
 
   $('#list').innerHTML = artists.length
-    ? (state.q ? '<div class="sec-h">我的收藏</div>' : '') + artistGridHtml(artists)
-    : (state.q ? '' : emptyState('收藏庫還是空的',
-        '在上面打一位歌手的名字 —— 打幾個字就好。找到他之後，歷年來所有黑膠發行、年份、地區、廠牌、Side A / Side B 曲目都會自動抓進來。',
-        '<button class="btn" data-new-artist>+ 手動新增</button>'));
+    ? (state.q ? '<div class="sec-h">' + t('我的收藏') + '</div>' : '') + artistGridHtml(artists)
+    : (state.q ? '' : emptyState(t('收藏庫還是空的'),
+        t('在上面打一位歌手的名字 —— 打幾個字就好。找到他之後，歷年來所有黑膠發行、年份、地區、廠牌、Side A / Side B 曲目都會自動抓進來。'),
+        '<button class="btn" data-new-artist>' + t('+ 手動新增') + '</button>'));
   bind();
   searchOnline(state.q);
 }
@@ -1179,29 +1367,29 @@ function searchOnline(term) {
   if (!slot) return;
   if (!term) { slot.innerHTML = ''; return; }
 
-  const head = '<div class="sec-h">線上資料庫</div>';
+  const head = '<div class="sec-h">' + t('線上資料庫') + '</div>';
   const note = (t) => head + '<p style="color:var(--muted);font-size:13px;margin:0">' + t + '</p>';
-  slot.innerHTML = note('搜尋「' + esc(term) + '」…');
+  slot.innerHTML = note(esc(t('搜尋「{0}」…', term)));
 
   mbSearchArtists(term, { prefix: true, limit: 10 }).then((list) => {
     const el = $('#online');
     if (seq !== onlineSeq || !el) return;
-    if (!list.length) { el.innerHTML = note('找不到符合「' + esc(term) + '」的歌手。'); return; }
-    el.innerHTML = '<div class="sec-h">線上資料庫 · 點一下抓進來</div>' +
+    if (!list.length) { el.innerHTML = note(esc(t('找不到符合「{0}」的歌手。', term))); return; }
+    el.innerHTML = '<div class="sec-h">' + t('線上資料庫 · 點一下抓進來') + '</div>' +
       '<div class="hits">' + list.map((a) =>
         '<button class="hit" data-hit=\'' + attr(JSON.stringify(a)) + '\'>' +
           '<span class="hit-disc"></span>' +
           '<span class="hit-main">' +
             '<span class="hit-name">' + esc(a.name) + '</span>' +
-            '<span class="hit-meta">' + esc([a.type, a.country, a.began, a.hint].filter(Boolean).join(' · ') || '歌手') + '</span>' +
+            '<span class="hit-meta">' + esc([a.type, a.country, a.began, a.hint].filter(Boolean).join(' · ') || t('歌手')) + '</span>' +
           '</span>' +
-          '<span class="hit-go">抓取 →</span>' +
+          '<span class="hit-go">' + t('抓取 →') + '</span>' +
         '</button>').join('') + '</div>';
     bind();
   }).catch((e) => {
     const el = $('#online');
     if (seq !== onlineSeq || !el) return;
-    el.innerHTML = head + '<div class="err"><b>查不到線上資料</b><code>' + esc(e.message) + '</code></div>';
+    el.innerHTML = head + '<div class="err"><b>' + t('查不到線上資料') + '</b><code>' + esc(e.message) + '</code></div>';
   });
 }
 
@@ -1210,11 +1398,11 @@ async function viewArtist(id) {
   app.innerHTML = skeletons(6, 'albums');
   const [artist, albums] = await Promise.all([API.artist(id), API.albums(id)]);
 
-  app.innerHTML = crumbs([{ label: '歌手', hash: '#/' }, { label: artist.name }]) +
+  app.innerHTML = crumbs([{ label: t('歌手'), hash: '#/' }, { label: artist.name }]) +
     pageHead(artist.country || 'Artist', artist.name,
-      albums.length + ' 張專輯',
-      '<button class="btn" data-edit-artist=\'' + attr(JSON.stringify(artist)) + '\'>編輯歌手</button>' +
-      '<button class="btn primary" data-new-album="' + artist.id + '">+ 新增專輯</button>') +
+      t('{0} 張專輯', albums.length),
+      '<button class="btn" data-edit-artist=\'' + attr(JSON.stringify(artist)) + '\'>' + t('編輯歌手') + '</button>' +
+      '<button class="btn primary" data-new-album="' + artist.id + '">+ ' + t('新增專輯') + '</button>') +
     (albums.length
       ? '<div class="grid albums">' + albums.map((al) =>
           '<div class="card">' +
@@ -1223,16 +1411,16 @@ async function viewArtist(id) {
             '<div class="body">' +
               '<h3><button style="all:unset;cursor:pointer" data-go="#/album/' + al.id + '">' + esc(al.title) + '</button></h3>' +
               '<div class="meta">' + esc([al.release_year, al.label].filter(Boolean).join(' · ')) + '</div>' +
-              '<div class="count-row"><span><b>' + al.version_count + '</b> 版本</span>' +
-                '<span><b>' + al.owned_count + '</b> 已收</span><span><b>' + al.want_count + '</b> 想要</span></div>' +
+              '<div class="count-row"><span><b>' + al.version_count + '</b> ' + t('版本') + '</span>' +
+                '<span><b>' + al.owned_count + '</b> ' + t('已收') + '</span><span><b>' + al.want_count + '</b> ' + t('想要') + '</span></div>' +
               '<div class="actions"><div class="card-menu">' +
-                '<button class="mini" data-edit-album=\'' + attr(JSON.stringify(al)) + '\' title="編輯">✎</button>' +
-                '<button class="mini del" data-del-album="' + al.id + '" data-name="' + attr(al.title) + '" title="刪除">🗑</button>' +
+                '<button class="mini" data-edit-album=\'' + attr(JSON.stringify(al)) + '\' title="' + attr(t('編輯')) + '">✎</button>' +
+                '<button class="mini del" data-del-album="' + al.id + '" data-name="' + attr(al.title) + '" title="' + attr(t('刪除')) + '">🗑</button>' +
               '</div></div>' +
             '</div>' +
           '</div>').join('') + '</div>'
-      : emptyState('還沒有專輯', '幫 ' + artist.name + ' 加入第一張專輯。',
-          '<button class="btn primary" data-new-album="' + artist.id + '">+ 新增專輯</button>'));
+      : emptyState(t('還沒有專輯'), t('幫 {0} 加入第一張專輯。', artist.name),
+          '<button class="btn primary" data-new-album="' + artist.id + '">+ ' + t('新增專輯') + '</button>'));
 
   fab.hidden = false;
   fab.onclick = () => newAlbum(artist.id);
@@ -1246,7 +1434,7 @@ async function viewAlbum(id) {
     album,
     versions,
     crumbItems: [
-      { label: '歌手', hash: '#/' },
+      { label: t('歌手'), hash: '#/' },
       { label: album.artist_name, hash: '#/artist/' + album.artist_id },
       { label: album.title },
     ],
@@ -1254,9 +1442,9 @@ async function viewAlbum(id) {
     title: album.title,
     sub: [album.release_year, album.label].filter(Boolean).join(' · '),
     actions:
-      '<button class="btn" data-edit-album=\'' + attr(JSON.stringify(album)) + '\'>編輯專輯</button>' +
-      '<button class="btn primary" data-new-version="' + album.id + '">+ 新增版本</button>',
-    onEmptyBtn: '<button class="btn primary" data-new-version="' + album.id + '">+ 新增版本</button>',
+      '<button class="btn" data-edit-album=\'' + attr(JSON.stringify(album)) + '\'>' + t('編輯專輯') + '</button>' +
+      '<button class="btn primary" data-new-version="' + album.id + '">+ ' + t('新增版本') + '</button>',
+    onEmptyBtn: '<button class="btn primary" data-new-version="' + album.id + '">+ ' + t('新增版本') + '</button>',
     fabAction: () => newVersion(album.id),
   });
 }
@@ -1267,13 +1455,13 @@ async function viewCollection() {
   const versions = await API.versions('');
   renderVersionPage({
     versions,
-    crumbItems: [{ label: '歌手', hash: '#/' }, { label: '我的收藏' }],
+    crumbItems: [{ label: t('歌手'), hash: '#/' }, { label: t('我的收藏') }],
     eyebrow: 'Collection',
-    title: '所有版本',
-    sub: versions.length + ' 個版本',
+    title: t('所有版本'),
+    sub: t('{0} 個版本', versions.length),
     actions: '',
     showAlbumName: true,
-    onEmptyBtn: '<button class="btn primary" data-go="#/">回歌手列表</button>',
+    onEmptyBtn: '<button class="btn primary" data-go="#/">' + t('回歌手列表') + '</button>',
   });
 }
 
@@ -1295,10 +1483,10 @@ function renderVersionPage(opts) {
   app.innerHTML = crumbs(crumbItems) +
     pageHead(eyebrow, title, sub, actions) +
     (versions.length ? '<div class="toolbar">' +
-      '<div class="chips">' + chip('all', '全部') + chip('want', '❤ Want') +
-        chip('owned', '✓ Owned') + chip('limited', 'Limited') + '</div>' +
+      '<div class="chips">' + chip('all', t('全部')) + chip('want', '❤ Want') +
+        chip('owned', '✓ Owned') + chip('limited', t('限量')) + '</div>' +
       (regions.length > 1
-        ? '<select id="regionSel" style="width:auto;min-width:140px"><option value="">所有地區</option>' +
+        ? '<select id="regionSel" style="width:auto;min-width:140px"><option value="">' + t('所有地區') + '</option>' +
           regions.map((r) => '<option value="' + attr(r) + '"' + (state.region === r ? ' selected' : '') + '>' + esc(r) + '</option>').join('') +
           '</select>'
         : '') +
@@ -1307,9 +1495,9 @@ function renderVersionPage(opts) {
     (filtered.length
       ? '<div class="grid versions">' + filtered.map((v) => versionCard(v, showAlbumName)).join('') + '</div>'
       : emptyState(
-          versions.length ? '沒有符合篩選的版本' : '還沒有任何版本',
-          versions.length ? '換個篩選條件看看。' : '加入第一個版本：顏色、限量、地區、售價都可以記錄。',
-          versions.length ? '<button class="chip" data-filter="all">清除篩選</button>' : onEmptyBtn));
+          versions.length ? t('沒有符合篩選的版本') : t('還沒有任何版本'),
+          versions.length ? t('換個篩選條件看看。') : t('加入第一個版本：顏色、限量、地區、售價都可以記錄。'),
+          versions.length ? '<button class="chip" data-filter="all">' + t('清除篩選') + '</button>' : onEmptyBtn));
 
   if (fabAction) { fab.hidden = false; fab.onclick = fabAction; }
 }
@@ -1326,12 +1514,12 @@ function versionCard(v, showAlbumName) {
   const buy = safeUrl(v.buy_url);
 
   const rows = [
-    showAlbumName && v.album_title ? ['專輯', v.artist_name + ' · ' + v.album_title] : null,
-    v.color ? ['顏色', v.color] : null,
-    v.format ? ['規格', v.format] : null,
-    v.release_date ? ['發行', v.release_date] : null,
-    v.catalog_no ? ['編號', v.catalog_no] : null,
-    v.edition_size ? ['限量', Number(v.edition_size).toLocaleString() + ' 張'] : null,
+    showAlbumName && v.album_title ? [t('專輯'), v.artist_name + ' · ' + v.album_title] : null,
+    v.color ? [t('顏色'), v.color] : null,
+    v.format ? [t('規格'), v.format] : null,
+    v.release_date ? [t('發行'), v.release_date] : null,
+    v.catalog_no ? [t('編號'), v.catalog_no] : null,
+    v.edition_size ? [t('限量'), Number(v.edition_size).toLocaleString() + (LANG === 'en' ? '' : ' 張')] : null,
   ].filter(Boolean);
 
   return '<div class="card vcard">' + cover +
@@ -1345,10 +1533,10 @@ function versionCard(v, showAlbumName) {
         '<button class="toggle want' + (v.want ? ' on' : '') + '" data-toggle="want" data-id="' + v.id + '" data-val="' + (v.want ? 0 : 1) + '">❤ Want</button>' +
         '<button class="toggle owned' + (v.owned ? ' on' : '') + '" data-toggle="owned" data-id="' + v.id + '" data-val="' + (v.owned ? 0 : 1) + '">✓ Owned</button>' +
         '<div class="card-menu">' +
-          ((v.tracks_loaded || v.mb_id) ? '<button class="mini" data-tracks=\'' + attr(JSON.stringify(v)) + '\' title="曲目">♪</button>' : '') +
-          (buy ? '<a class="mini" href="' + attr(buy) + '" target="_blank" rel="noopener noreferrer" title="購買">🛒</a>' : '') +
-          '<button class="mini" data-edit-version=\'' + attr(JSON.stringify(v)) + '\' title="編輯">✎</button>' +
-          '<button class="mini del" data-del-version="' + v.id + '" data-name="' + attr(v.name) + '" title="刪除">🗑</button>' +
+          ((v.tracks_loaded || v.mb_id) ? '<button class="mini" data-tracks=\'' + attr(JSON.stringify(v)) + '\' title="' + attr(t('曲目')) + '">♪</button>' : '') +
+          (buy ? '<a class="mini" href="' + attr(buy) + '" target="_blank" rel="noopener noreferrer" title="' + attr(t('購買')) + '">🛒</a>' : '') +
+          '<button class="mini" data-edit-version=\'' + attr(JSON.stringify(v)) + '\' title="' + attr(t('編輯')) + '">✎</button>' +
+          '<button class="mini del" data-del-version="' + v.id + '" data-name="' + attr(v.name) + '" title="' + attr(t('刪除')) + '">🗑</button>' +
         '</div>' +
       '</div>' +
     '</div>' +
@@ -1361,13 +1549,13 @@ function versionCard(v, showAlbumName) {
 function openImport(opts) {
   const { query: initialQuery, artist: directArtist } = opts || {};
   const m = openModal(
-    '<h3>從資料庫匯入</h3>' +
-    '<p class="hint">輸入歌手名字，自動抓出他歷年來所有黑膠發行 —— 發行年份、地區、廠牌、曲目全都有。資料來自 MusicBrainz（免費的公開音樂資料庫）。</p>' +
-    '<label class="fld"><span>歌手名稱</span>' +
-      '<input id="mbQ" placeholder="例：Radiohead、周杰倫、Taylor Swift" autocomplete="off"></label>' +
+    '<h3>' + t('從資料庫匯入') + '</h3>' +
+    '<p class="hint">' + t('輸入歌手名字，自動抓出他歷年來所有黑膠發行 —— 發行年份、地區、廠牌、曲目全都有。資料來自 MusicBrainz（免費的公開音樂資料庫）。') + '</p>' +
+    '<label class="fld"><span>' + t('歌手名稱') + '</span>' +
+      '<input id="mbQ" placeholder="' + attr(t('例：Radiohead、周杰倫、Taylor Swift')) + '" autocomplete="off"></label>' +
     '<div id="mbBody"></div>' +
-    '<div class="modal-foot"><button class="btn ghost" data-close>關閉</button>' +
-    '<button class="btn primary" id="mbGo">搜尋</button></div>');
+    '<div class="modal-foot"><button class="btn ghost" data-close>' + t('關閉') + '</button>' +
+    '<button class="btn primary" id="mbGo">' + t('搜尋') + '</button></div>');
 
   const q = m.el.querySelector('#mbQ');
   const body = m.el.querySelector('#mbBody');
@@ -1375,17 +1563,17 @@ function openImport(opts) {
   m.el.querySelector('[data-close]').onclick = m.close;
 
   const busy = (t) => { body.innerHTML = '<p class="hint" style="text-align:center;padding:18px 0">' + esc(t) + '</p>'; };
-  const fail = (e) => { body.innerHTML = '<div class="err"><b>出錯了</b><code>' + esc(e.message) + '</code></div>'; };
+  const fail = (e) => { body.innerHTML = '<div class="err"><b>' + t('出錯了') + '</b><code>' + esc(e.message) + '</code></div>'; };
 
   /* --- 步驟 1：搜尋歌手 --- */
   const search = async () => {
     const name = q.value.trim();
     if (!name) { q.focus(); return; }
-    busy('搜尋中…');
+    busy(t('搜尋中…'));
     try {
       const list = await mbSearchArtists(name);
-      if (!list.length) { body.innerHTML = '<p class="hint">找不到「' + esc(name) + '」，換個寫法試試（例如用英文原名）。</p>'; return; }
-      body.innerHTML = '<p class="hint" style="margin:6px 0 10px">選一位：</p>' +
+      if (!list.length) { body.innerHTML = '<p class="hint">' + esc(t('找不到「{0}」，換個寫法試試（例如用英文原名）。', name)) + '</p>'; return; }
+      body.innerHTML = '<p class="hint" style="margin:6px 0 10px">' + t('選一位：') + '</p>' +
         '<div style="display:flex;flex-direction:column;gap:8px">' +
         list.map((a, i) =>
           '<button class="btn" data-pick="' + i + '" style="justify-content:flex-start;text-align:left;padding:11px 15px;border-radius:10px">' +
@@ -1402,20 +1590,20 @@ function openImport(opts) {
 
   /* --- 步驟 2：列出這位歌手的所有黑膠 --- */
   const pickArtist = async (artist) => {
-    busy('正在抓 ' + artist.name + ' 的黑膠發行…');
+    busy(t('正在抓 {0} 的黑膠發行…', artist.name));
     try {
       const releases = await mbVinylReleases(artist.mb_id,
-        (n) => busy('正在抓 ' + artist.name + ' 的黑膠發行… 已找到 ' + n + ' 張'));
+        (n) => busy(t('正在抓 {0} 的黑膠發行… 已找到 {1} 張', artist.name, n)));
       if (!releases.length) {
-        body.innerHTML = '<p class="hint">MusicBrainz 上查不到 ' + esc(artist.name) + ' 的黑膠發行。</p>';
+        body.innerHTML = '<p class="hint">' + esc(t('MusicBrainz 上查不到 {0} 的黑膠發行。', artist.name)) + '</p>';
         return;
       }
       const years = releases.map((r) => r.year).filter(Boolean);
       body.innerHTML =
         '<div style="border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px">' +
           '<b style="font-family:var(--serif);font-size:19px">' + esc(artist.name) + '</b>' +
-          '<div class="hint" style="margin:4px 0 0">找到 <b style="color:var(--gold)">' + releases.length + '</b> 張黑膠' +
-          (years.length ? '，年份 ' + Math.min(...years) + '–' + Math.max(...years) : '') + '</div>' +
+          '<div class="hint" style="margin:4px 0 0">' + t('找到 {0} 張黑膠', '<b style="color:var(--gold)">' + releases.length + '</b>') +
+          (years.length ? t('，年份 {0}–{1}', Math.min(...years), Math.max(...years)) : '') + '</div>' +
         '</div>' +
         '<div style="max-height:38vh;overflow-y:auto;border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:14px">' +
           releases.map((r) =>
@@ -1426,8 +1614,8 @@ function openImport(opts) {
               '</div></div>').join('') +
         '</div>' +
         '<label class="checks" style="margin-bottom:14px"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">' +
-          '<input type="checkbox" id="mbTracks" checked>同時抓取曲目（每張約 1 秒，' + releases.length + ' 張約 ' + Math.ceil(releases.length * 1.2) + ' 秒）</label></label>' +
-        '<button class="btn primary" id="mbImport" style="width:100%;justify-content:center">全部匯入 ' + releases.length + ' 張</button>' +
+          '<input type="checkbox" id="mbTracks" checked>' + t('同時抓取曲目（每張約 1 秒，{0} 張約 {1} 秒）', releases.length, Math.ceil(releases.length * 1.2)) + '</label></label>' +
+        '<button class="btn primary" id="mbImport" style="width:100%;justify-content:center">' + t('全部匯入 {0} 張', releases.length) + '</button>' +
         '<div id="mbProg" class="hint" style="margin-top:10px"></div>';
       body.querySelector('#mbImport').onclick = () =>
         doImport(artist, releases, body.querySelector('#mbTracks').checked);
@@ -1442,10 +1630,10 @@ function openImport(opts) {
     const report = (t) => { prog.innerHTML = esc(t); };
 
     try {
-      report('建立歌手…');
+      report(t('建立歌手…'));
       const saved = await API.createArtist({
         name: artist.name, country: artist.country, mb_id: artist.mb_id,
-        notes: '從 MusicBrainz 匯入',
+        notes: t('從 MusicBrainz 匯入'),
       });
 
       // 以 release-group（＝專輯）分組，同一張專輯的不同壓片放在同一個專輯底下
@@ -1469,7 +1657,7 @@ function openImport(opts) {
           const v = await API.createVersion({
             album_id: album.id,
             name: [r.title !== g.title ? r.title : null, r.disambiguation, r.country, r.format]
-                    .filter(Boolean).join(' · ') || '黑膠',
+                    .filter(Boolean).join(' · ') || t('黑膠'),
             cover_url: caaCover(r.mb_id),
             region: r.country, release_date: r.date, format: r.format,
             catalog_no: r.catalog_no, mb_id: r.mb_id,
@@ -1477,7 +1665,7 @@ function openImport(opts) {
           if (r.label && !album.label) await API.updateAlbum(album.id, { label: r.label });
           versionsToLoad.push({ versionId: v.id, mb_id: r.mb_id });
           done++;
-          report('匯入中… ' + done + ' / ' + releases.length);
+          report(t('匯入中… {0} / {1}', done, releases.length));
         }
       }
 
@@ -1485,7 +1673,7 @@ function openImport(opts) {
         let n = 0;
         for (const item of versionsToLoad) {
           n++;
-          report('抓取曲目… ' + n + ' / ' + versionsToLoad.length + '（可以先關掉，之後點版本也會自動抓）');
+          report(t('抓取曲目… {0} / {1}（可以先關掉，之後點版本也會自動抓）', n, versionsToLoad.length));
           try {
             const list = await mbTracks(item.mb_id);
             if (list.length) await API.setTracks(item.versionId, list);
@@ -1494,7 +1682,7 @@ function openImport(opts) {
       }
 
       m.close();
-      toast('已匯入 ' + artist.name + '：' + groups.size + ' 張專輯、' + releases.length + ' 個版本');
+      toast(t('已匯入 {0}：{1} 張專輯、{2} 個版本', artist.name, groups.size, releases.length));
       go('#/artist/' + saved.id);
       render();
     } catch (e) {
@@ -1531,7 +1719,7 @@ async function ensureTracks(v) {
 }
 
 function tracklistHtml(list) {
-  if (!list.length) return '<p class="hint" style="margin:0">這個版本還沒有曲目資料。</p>';
+  if (!list.length) return '<p class="hint" style="margin:0">' + t('這個版本還沒有曲目資料。') + '</p>';
   const sides = new Map();
   for (const t of list) {
     const key = t.side || '—';
@@ -1540,7 +1728,7 @@ function tracklistHtml(list) {
   }
   return [...sides.entries()].map(([side, items]) =>
     '<div class="side">' +
-      '<div class="side-h">' + (side === '—' ? '曲目' : 'Side ' + esc(side)) + '</div>' +
+      '<div class="side-h">' + (side === '—' ? t('曲目') : 'Side ' + esc(side)) + '</div>' +
       items.map((t) =>
         '<div class="trk">' +
           '<span class="trk-n">' + esc(t.number || '') + '</span>' +
@@ -1554,13 +1742,13 @@ async function openTracks(v) {
   const m = openModal(
     '<h3>' + esc(v.name) + '</h3>' +
     '<p class="hint">' + esc([v.album_title, v.region, v.release_date, v.format].filter(Boolean).join(' · ')) + '</p>' +
-    '<div id="tkBody"><p class="hint" style="text-align:center;padding:18px 0">載入曲目…</p></div>' +
-    '<div class="modal-foot"><button class="btn ghost" data-close>關閉</button></div>');
+    '<div id="tkBody"><p class="hint" style="text-align:center;padding:18px 0">' + t('載入曲目…') + '</p></div>' +
+    '<div class="modal-foot"><button class="btn ghost" data-close>' + t('關閉') + '</button></div>');
   m.el.querySelector('[data-close]').onclick = m.close;
   try {
     m.el.querySelector('#tkBody').innerHTML = tracklistHtml(await ensureTracks(v));
   } catch (e) {
-    m.el.querySelector('#tkBody').innerHTML = '<div class="err"><b>抓不到曲目</b><code>' + esc(e.message) + '</code></div>';
+    m.el.querySelector('#tkBody').innerHTML = '<div class="err"><b>' + t('抓不到曲目') + '</b><code>' + esc(e.message) + '</code></div>';
   }
 }
 
@@ -1568,33 +1756,33 @@ async function openTracks(v) {
 /* 新增 / 編輯                                                                 */
 /* ========================================================================== */
 const newArtist = () => formModal({
-  title: '新增歌手', hint: '收藏庫的第一層', fields: artistFields, submitLabel: '新增',
-  onSubmit: async (d) => { await API.createArtist(d); toast('已新增歌手'); render(); },
+  title: t('新增歌手'), hint: t('收藏庫的第一層'), fields: artistFields, submitLabel: t('新增'),
+  onSubmit: async (d) => { await API.createArtist(d); toast(t('已新增歌手')); render(); },
 });
 
 const editArtist = (a) => formModal({
-  title: '編輯歌手', fields: artistFields, values: a, submitLabel: '儲存',
-  onSubmit: async (d) => { await API.updateArtist(a.id, d); toast('已更新'); render(); },
+  title: t('編輯歌手'), fields: artistFields, values: a, submitLabel: t('儲存'),
+  onSubmit: async (d) => { await API.updateArtist(a.id, d); toast(t('已更新')); render(); },
 });
 
 const newAlbum = (artistId) => formModal({
-  title: '新增專輯', fields: albumFields, submitLabel: '新增',
-  onSubmit: async (d) => { await API.createAlbum({ ...d, artist_id: artistId }); toast('已新增專輯'); render(); },
+  title: t('新增專輯'), fields: albumFields, submitLabel: t('新增'),
+  onSubmit: async (d) => { await API.createAlbum({ ...d, artist_id: artistId }); toast(t('已新增專輯')); render(); },
 });
 
 const editAlbum = (al) => formModal({
-  title: '編輯專輯', fields: albumFields, values: al, submitLabel: '儲存',
+  title: t('編輯專輯'), fields: albumFields, values: al, submitLabel: t('儲存'),
   onSubmit: async (d) => { await API.updateAlbum(al.id, d); toast('已更新'); render(); },
 });
 
 const newVersion = (albumId) => formModal({
-  title: '新增版本', hint: '顏色、限量、地區、售價、購買連結', fields: versionFields,
-  values: { currency: 'USD', color_hex: '#C9A24B' }, submitLabel: '新增',
-  onSubmit: async (d) => { await API.createVersion({ ...d, album_id: albumId }); toast('已新增版本'); render(); },
+  title: t('新增版本'), hint: t('顏色、限量、地區、售價、購買連結'), fields: versionFields,
+  values: { currency: 'USD', color_hex: '#C9A24B' }, submitLabel: t('新增'),
+  onSubmit: async (d) => { await API.createVersion({ ...d, album_id: albumId }); toast(t('已新增版本')); render(); },
 });
 
 const editVersion = (v) => formModal({
-  title: '編輯版本', fields: versionFields, values: v, submitLabel: '儲存',
+  title: t('編輯版本'), fields: versionFields, values: v, submitLabel: t('儲存'),
   onSubmit: async (d) => { await API.updateVersion(v.id, d); toast('已更新'); render(); },
 });
 
@@ -1625,15 +1813,15 @@ function bind() {
   document.querySelectorAll('[data-edit-version]').forEach((el) => { el.onclick = () => editVersion(JSON.parse(el.dataset.editVersion)); });
 
   document.querySelectorAll('[data-del-artist]').forEach((el) => {
-    el.onclick = () => confirmModal('刪除「' + el.dataset.name + '」會同時刪掉底下所有專輯與版本，確定嗎？',
-      async () => { await API.deleteArtist(el.dataset.delArtist); toast('已刪除'); go('#/'); render(); });
+    el.onclick = () => confirmModal(t('刪除「{0}」會同時刪掉底下所有專輯與版本，確定嗎？', el.dataset.name),
+      async () => { await API.deleteArtist(el.dataset.delArtist); toast(t('已刪除')); go('#/'); render(); });
   });
   document.querySelectorAll('[data-del-album]').forEach((el) => {
-    el.onclick = () => confirmModal('刪除「' + el.dataset.name + '」會同時刪掉底下所有版本，確定嗎？',
+    el.onclick = () => confirmModal(t('刪除「{0}」會同時刪掉底下所有版本，確定嗎？', el.dataset.name),
       async () => { await API.deleteAlbum(el.dataset.delAlbum); toast('已刪除'); render(); });
   });
   document.querySelectorAll('[data-del-version]').forEach((el) => {
-    el.onclick = () => confirmModal('確定刪除版本「' + el.dataset.name + '」？',
+    el.onclick = () => confirmModal(t('確定刪除版本「{0}」？', el.dataset.name),
       async () => { await API.deleteVersion(el.dataset.delVersion); toast('已刪除'); render(); });
   });
 
@@ -1645,7 +1833,7 @@ function bind() {
       el.dataset.val = val === 1 ? 0 : 1;
       try {
         await API.updateVersion(id, { [field]: val });
-        toast(field === 'want' ? (val ? '已加入想要' : '已移除想要') : (val ? '已標記擁有' : '已取消擁有'));
+        toast(field === 'want' ? t(val ? '已加入想要' : '已移除想要') : t(val ? '已標記擁有' : '已取消擁有'));
         refreshStats();
       } catch (err) {
         el.classList.toggle('on', val !== 1);        // 回滾
