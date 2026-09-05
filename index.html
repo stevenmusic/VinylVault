@@ -301,7 +301,7 @@ async function api(path, { method = 'GET', body } = {}) {
   return data;
 }
 
-const API = {
+const Remote = {
   stats:          ()             => api('/stats'),
   artists:        (q)            => api('/artists' + (q ? '?q=' + encodeURIComponent(q) : '')),
   artist:         (id)           => api('/artists/' + id),
@@ -318,6 +318,240 @@ const API = {
   updateVersion:  (id, b)        => api('/versions/' + id, { method: 'PATCH', body: b }),
   deleteVersion:  (id)           => api('/versions/' + id, { method: 'DELETE' }),
 };
+
+/* ========================================================================== */
+/* 本機模式：沒有設定 API 網址時，資料存在這台裝置的瀏覽器裡                     */
+/* 介面跟 Remote 完全一樣，所以上層畫面不用知道自己在哪個模式                    */
+/* ========================================================================== */
+const DB_KEY = 'vv.db';
+
+const blank = () => ({ artists: [], albums: [], versions: [], seq: 0 });
+
+function load() {
+  try {
+    const raw = localStorage.getItem(DB_KEY);
+    if (!raw) return blank();
+    const d = JSON.parse(raw);
+    return {
+      artists: d.artists || [], albums: d.albums || [],
+      versions: d.versions || [], seq: d.seq || 0,
+    };
+  } catch { return blank(); }
+}
+
+function save(d) {
+  try { localStorage.setItem(DB_KEY, JSON.stringify(d)); }
+  catch (e) { throw new Error('無法儲存到這台裝置（可能是儲存空間已滿）：' + e.message); }
+}
+
+const nowStamp = () => new Date().toISOString().slice(0, 19).replace('T', ' ');
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const bit = (v) => (v === true || v === 1 || v === '1' || v === 'true' ? 1 : 0);
+
+function numOrNull(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** 只寫入白名單欄位，並做型別轉換 */
+function apply(target, body, fields) {
+  for (const [key, cast] of Object.entries(fields)) {
+    if (Object.prototype.hasOwnProperty.call(body, key)) target[key] = cast(body[key]);
+  }
+  target.updated_at = nowStamp();
+  return target;
+}
+
+const strOrNull = (v) => {
+  if (v === null || v === undefined) return null;
+  const t = String(v).trim();
+  return t === '' ? null : t;
+};
+const intOrNull = (v) => { const n = numOrNull(v); return n === null ? null : Math.trunc(n); };
+
+const F_ARTIST  = { name: strOrNull, sort_name: strOrNull, country: strOrNull, image_url: strOrNull, notes: strOrNull };
+const F_ALBUM   = { artist_id: intOrNull, title: strOrNull, release_year: intOrNull, cover_url: strOrNull, label: strOrNull, notes: strOrNull };
+const F_VERSION = {
+  album_id: intOrNull, name: strOrNull, cover_url: strOrNull, color: strOrNull, color_hex: strOrNull,
+  is_limited: bit, is_exclusive: bit, exclusive_to: strOrNull, region: strOrNull,
+  release_date: strOrNull, edition_size: intOrNull, price: numOrNull, currency: strOrNull,
+  buy_url: strOrNull, want: bit, owned: bit, notes: strOrNull,
+};
+
+const byId = (list, id) => list.find((x) => x.id === Number(id));
+
+function decorateAlbum(d, al) {
+  const vs = d.versions.filter((v) => v.album_id === al.id);
+  return {
+    ...al,
+    artist_name: byId(d.artists, al.artist_id)?.name ?? '',
+    version_count: vs.length,
+    owned_count: vs.filter((v) => v.owned).length,
+    want_count: vs.filter((v) => v.want).length,
+  };
+}
+
+function decorateVersion(d, v) {
+  const al = byId(d.albums, v.album_id);
+  const ar = al ? byId(d.artists, al.artist_id) : null;
+  return {
+    ...v,
+    album_title: al?.title ?? '',
+    album_cover_url: al?.cover_url ?? null,
+    artist_id: ar?.id ?? null,
+    artist_name: ar?.name ?? '',
+  };
+}
+
+const Local = {
+  async stats() {
+    const d = load();
+    return {
+      artists: d.artists.length, albums: d.albums.length, versions: d.versions.length,
+      want: d.versions.filter((v) => v.want).length,
+      owned: d.versions.filter((v) => v.owned).length,
+    };
+  },
+
+  async artists(q) {
+    const d = load();
+    const kw = (q || '').toLowerCase();
+    return d.artists
+      .filter((a) => !kw || a.name.toLowerCase().includes(kw))
+      .map((a) => {
+        const als = d.albums.filter((al) => al.artist_id === a.id);
+        const ids = als.map((al) => al.id);
+        const vs = d.versions.filter((v) => ids.includes(v.album_id));
+        return { ...a, album_count: als.length, version_count: vs.length, owned_count: vs.filter((v) => v.owned).length };
+      })
+      .sort((x, y) => (x.sort_name || x.name).localeCompare(y.sort_name || y.name, 'zh-Hant'));
+  },
+
+  async artist(id) {
+    const a = byId(load().artists, id);
+    if (!a) throw new Error('找不到這位歌手');
+    return clone(a);
+  },
+
+  async createArtist(body) {
+    const d = load();
+    if (!strOrNull(body.name)) throw new Error('歌手名稱為必填');
+    const row = apply({ id: ++d.seq, created_at: nowStamp() }, body, F_ARTIST);
+    d.artists.push(row); save(d);
+    return clone(row);
+  },
+
+  async updateArtist(id, body) {
+    const d = load();
+    const a = byId(d.artists, id);
+    if (!a) throw new Error('找不到這位歌手');
+    apply(a, body, F_ARTIST); save(d);
+    return clone(a);
+  },
+
+  async deleteArtist(id) {
+    const d = load();
+    const n = Number(id);
+    const albumIds = d.albums.filter((al) => al.artist_id === n).map((al) => al.id);
+    d.versions = d.versions.filter((v) => !albumIds.includes(v.album_id));
+    d.albums = d.albums.filter((al) => al.artist_id !== n);
+    d.artists = d.artists.filter((a) => a.id !== n);
+    save(d);
+    return { deleted: true, id: n };
+  },
+
+  async albums(artistId) {
+    const d = load();
+    return d.albums
+      .filter((al) => al.artist_id === Number(artistId))
+      .map((al) => decorateAlbum(d, al))
+      .sort((x, y) => (y.release_year || 0) - (x.release_year || 0) || x.title.localeCompare(y.title, 'zh-Hant'));
+  },
+
+  async album(id) {
+    const d = load();
+    const al = byId(d.albums, id);
+    if (!al) throw new Error('找不到這張專輯');
+    return decorateAlbum(d, al);
+  },
+
+  async createAlbum(body) {
+    const d = load();
+    if (intOrNull(body.artist_id) === null) throw new Error('缺少歌手');
+    if (!strOrNull(body.title)) throw new Error('專輯名稱為必填');
+    const row = apply({ id: ++d.seq, created_at: nowStamp() }, body, F_ALBUM);
+    d.albums.push(row); save(d);
+    return clone(row);
+  },
+
+  async updateAlbum(id, body) {
+    const d = load();
+    const al = byId(d.albums, id);
+    if (!al) throw new Error('找不到這張專輯');
+    apply(al, body, F_ALBUM); save(d);
+    return clone(al);
+  },
+
+  async deleteAlbum(id) {
+    const d = load();
+    const n = Number(id);
+    d.versions = d.versions.filter((v) => v.album_id !== n);
+    d.albums = d.albums.filter((al) => al.id !== n);
+    save(d);
+    return { deleted: true, id: n };
+  },
+
+  async versions(qs) {
+    const d = load();
+    const p = new URLSearchParams(qs || '');
+    const albumId = p.get('album_id');
+    const artistId = p.get('artist_id');
+    const region = p.get('region');
+    return d.versions
+      .map((v) => decorateVersion(d, v))
+      .filter((v) => {
+        if (albumId !== null && v.album_id !== Number(albumId)) return false;
+        if (artistId !== null && v.artist_id !== Number(artistId)) return false;
+        if (region && v.region !== region) return false;
+        for (const key of ['want', 'owned', 'is_limited', 'is_exclusive']) {
+          if (p.get(key) !== null && v[key] !== bit(p.get(key))) return false;
+        }
+        return true;
+      })
+      .sort((x, y) => String(y.release_date || '').localeCompare(String(x.release_date || '')) ||
+                      x.name.localeCompare(y.name, 'zh-Hant'));
+  },
+
+  async createVersion(body) {
+    const d = load();
+    if (intOrNull(body.album_id) === null) throw new Error('缺少專輯');
+    if (!strOrNull(body.name)) throw new Error('版本名稱為必填');
+    const row = apply({ id: ++d.seq, created_at: nowStamp(), currency: 'USD' }, body, F_VERSION);
+    d.versions.push(row); save(d);
+    return clone(row);
+  },
+
+  async updateVersion(id, body) {
+    const d = load();
+    const v = byId(d.versions, id);
+    if (!v) throw new Error('找不到這個版本');
+    apply(v, body, F_VERSION); save(d);
+    return clone(v);
+  },
+
+  async deleteVersion(id) {
+    const d = load();
+    const n = Number(id);
+    d.versions = d.versions.filter((v) => v.id !== n);
+    save(d);
+    return { deleted: true, id: n };
+  },
+};
+
+/** 有填 API 網址就走雲端，沒有就用這台裝置的本機資料。 */
+const API = new Proxy({}, { get: (_t, key) => (getBase() ? Remote : Local)[key] });
+const isLocal = () => !getBase();
 
 /* ========================================================================== */
 /* 小工具                                                                      */
@@ -464,14 +698,26 @@ function confirmModal(text, onYes) {
 /* 設定畫面                                                                    */
 /* ========================================================================== */
 function openSettings() {
+  const local = isLocal();
   const m = openModal(
-    '<h3>連線設定</h3>' +
-    '<p class="hint">填入你部署好的 Cloudflare Worker 網址，資料會存在雲端 Turso，手機與電腦共用同一份。</p>' +
-    '<label class="fld"><span>API 網址（Worker）</span>' +
-      '<input id="sBase" placeholder="https://vinylvault-api.xxx.workers.dev" value="' + attr(getBase()) + '"></label>' +
-    '<label class="fld"><span>寫入權杖（選填，對應 Worker 的 WRITE_TOKEN）</span>' +
-      '<input id="sToken" type="password" placeholder="留空代表 Worker 沒設定保護" value="' + attr(getToken()) + '"></label>' +
+    '<h3>設定</h3>' +
+    '<p class="hint">' + (local
+      ? '目前是<b style="color:var(--gold)">本機模式</b>：資料存在這台裝置的瀏覽器裡，不用任何帳號就能用，但不會跟其他裝置同步。'
+      : '目前是<b style="color:var(--gold)">雲端模式</b>：資料存在你的資料庫，手機與電腦共用同一份。') + '</p>' +
+    '<label class="fld"><span>API 網址（留空 = 本機模式）</span>' +
+      '<input id="sBase" placeholder="https://…workers.dev" value="' + attr(getBase()) + '"></label>' +
+    '<label class="fld"><span>寫入權杖（選填）</span>' +
+      '<input id="sToken" type="password" placeholder="Worker 沒設定保護就留空" value="' + attr(getToken()) + '"></label>' +
     '<div id="sTest" class="hint"></div>' +
+    (local
+      ? '<div style="border-top:1px solid var(--line);margin:18px 0 14px;padding-top:16px">' +
+        '<p class="hint" style="margin-bottom:10px">本機資料的備份 —— 換手機或清除瀏覽器資料前記得匯出。</p>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+          '<button class="btn sm" id="sExport">匯出備份</button>' +
+          '<button class="btn sm" id="sImport">匯入備份</button>' +
+          '<input type="file" id="sFile" accept="application/json,.json" hidden>' +
+        '</div></div>'
+      : '') +
     '<div class="modal-foot">' +
       '<button class="btn ghost" data-close>取消</button>' +
       '<button class="btn" id="sPing">測試連線</button>' +
@@ -485,17 +731,44 @@ function openSettings() {
 
   m.el.querySelector('#sPing').onclick = async () => {
     const url = baseEl.value.trim().replace(/\/+$/, '');
+    if (!url) { out.innerHTML = '<span style="color:var(--muted)">網址留空 = 本機模式，不需要連線。</span>'; return; }
     out.textContent = '測試中…';
     try {
-      const r = await fetch(url + '/health');
-      const j = await r.json();
+      const j = await (await fetch(url + '/health')).json();
       out.innerHTML = j.ok
         ? '<span style="color:var(--ok)">✓ 連線成功，資料庫正常</span>'
-        : '<span style="color:var(--danger)">✕ Worker 有回應，但資料庫異常：' + esc(j.db || '未設定 Turso 環境變數') + '</span>';
+        : '<span style="color:var(--danger)">✕ 有回應，但資料庫異常：' + esc(j.db || '未設定 Turso 環境變數') + '</span>';
     } catch (e) {
       out.innerHTML = '<span style="color:var(--danger)">✕ 連不上：' + esc(e.message) + '</span>';
     }
   };
+
+  const exportBtn = m.el.querySelector('#sExport');
+  if (exportBtn) {
+    exportBtn.onclick = () => {
+      const blob = new Blob([localStorage.getItem(DB_KEY) || JSON.stringify(blank())],
+        { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'vinylvault-' + new Date().toISOString().slice(0, 10) + '.json';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      toast('備份已下載');
+    };
+    const fileEl = m.el.querySelector('#sFile');
+    m.el.querySelector('#sImport').onclick = () => fileEl.click();
+    fileEl.onchange = async () => {
+      const f = fileEl.files[0];
+      if (!f) return;
+      try {
+        const data = JSON.parse(await f.text());
+        if (!Array.isArray(data.artists)) throw new Error('這不是 VinylVault 的備份檔');
+        save({ artists: data.artists, albums: data.albums || [], versions: data.versions || [],
+               seq: data.seq || 0 });
+        m.close(); toast('已匯入備份'); render();
+      } catch (e) { toast(e.message, true); }
+    };
+  }
 
   m.el.querySelector('#sSave').onclick = () => {
     localStorage.setItem(LS.base, baseEl.value.trim().replace(/\/+$/, ''));
@@ -505,6 +778,23 @@ function openSettings() {
     render();
   };
 }
+
+/** 放一筆範例資料，讓第一次打開的人看得到畫面長怎樣。 */
+async function loadDemo() {
+  try {
+    const a = await API.createArtist({ name: 'Taylor Swift', country: 'US', notes: '範例資料，可以直接刪掉' });
+    const al = await API.createAlbum({ artist_id: a.id, title: 'Midnights', release_year: 2022, label: 'Republic' });
+    await API.createVersion({ album_id: al.id, name: 'Jade Green Edition', color: 'Jade Green',
+      color_hex: '#4F7A5C', is_limited: 1, is_exclusive: 1, exclusive_to: 'Official Store',
+      region: 'US', release_date: '2022-10-21', edition_size: 5000, price: 34.99, currency: 'USD', want: 1 });
+    await API.createVersion({ album_id: al.id, name: 'Blood Moon Edition', color: 'Marbled Red',
+      color_hex: '#8E2F2F', is_limited: 1, region: 'UK', release_date: '2022-10-21',
+      price: 32, currency: 'GBP', owned: 1 });
+    toast('已放入範例資料');
+    render();
+  } catch (e) { toast(e.message, true); }
+}
+
 $('#settingsBtn').onclick = openSettings;
 $('#brand').onclick = () => go('#/');
 
@@ -553,13 +843,6 @@ async function runSetup(seed) {
     toast(r.message || '資料表已建立');
     render();
   } catch (e) { toast(e.message, true); }
-}
-
-function setupScreen() {
-  return pageHead('Welcome', 'VinylVault', '黑膠版本收藏庫 — 歌手 · 專輯 · 版本三層管理') +
-    emptyState('先設定 API 網址',
-      '這個 App 透過你自己的 Cloudflare Worker 讀寫 Turso 資料庫。部署完 Worker 後，把網址填進來就能開始使用。',
-      '<button class="btn primary" data-settings>開始設定</button>');
 }
 
 /* ========================================================================== */
@@ -617,7 +900,6 @@ let state = { filter: 'all', region: '', q: '' };
 async function render() {
   const route = parseRoute();
   fab.hidden = true;
-  if (!getBase()) { app.innerHTML = setupScreen(); bind(); return; }
   refreshStats();
   try {
     if (route.view === 'artist')          await viewArtist(route.id);
@@ -659,7 +941,8 @@ async function viewHome() {
   if (!artists.length) {
     list.innerHTML = emptyState(state.q ? '找不到符合的歌手' : '收藏庫還是空的',
       state.q ? '換個關鍵字試試。' : '從新增第一位歌手開始，接著加入專輯與各種黑膠版本。',
-      '<button class="btn primary" data-new-artist>+ 新增歌手</button>');
+      '<button class="btn primary" data-new-artist>+ 新增歌手</button>' +
+      (state.q ? '' : ' <button class="btn" data-demo>放一筆範例看看</button>'));
   } else {
     list.innerHTML = '<div class="grid artists">' + artists.map((a) =>
       '<div class="card artist-card">' +
@@ -873,6 +1156,7 @@ function bind() {
   });
   document.querySelectorAll('[data-settings]').forEach((el) => { el.onclick = openSettings; });
   document.querySelectorAll('[data-retry]').forEach((el) => { el.onclick = render; });
+  document.querySelectorAll('[data-demo]').forEach((el) => { el.onclick = loadDemo; });
   document.querySelectorAll('[data-setup]').forEach((el) => { el.onclick = () => runSetup(false); });
   document.querySelectorAll('[data-setup-seed]').forEach((el) => { el.onclick = () => runSetup(true); });
 

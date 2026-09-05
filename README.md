@@ -2,16 +2,22 @@
 
 黑膠唱片版本收藏庫 — **歌手 → 專輯 → 版本** 三層結構，記錄每張唱片的顏色、限量、獨佔通路、地區、發行日、售價與購買連結，並用 ❤ Want / ✓ Owned 追蹤收藏狀態。
 
-資料存在雲端，手機和電腦看到的是同一份。
+## 兩種用法
+
+**① 本機模式（預設，零設定）**
+打開網頁就能用，資料存在這台裝置的瀏覽器裡。不需要註冊任何服務、不需要後端。
+適合自己一台手機用。記得偶爾在 ⚙ 設定裡「匯出備份」。
+
+**② 雲端模式（跨裝置同步）**
+在 ⚙ 設定裡填入 Cloudflare Worker 網址後，資料改存 Turso，手機和電腦看到同一份。
 
 ```
 瀏覽器 / App  ──►  Cloudflare Worker  ──►  Turso (libSQL)
-  index.html        worker/src/index.js       db/schema.sql
+  index.html        worker/src/api.js        自動建表
 ```
 
 Turso 的 URL 與 Token 只存在 Worker 的環境變數，**永遠不會出現在前端**。
-
----
+Worker 本身也會把前端網頁一起送出來，所以部署完直接開 Worker 網址就是 App。
 
 ## 專案結構
 
@@ -21,7 +27,9 @@ Turso 的 URL 與 Token 只存在 Worker 的環境變數，**永遠不會出現�
 | `config.js` | 前端設定：Worker 網址 |
 | `db/schema.sql` | Turso 資料表：`artists` / `albums` / `versions` |
 | `db/seed.sql` | 選用的範例資料 |
-| `worker/src/index.js` | Cloudflare Worker API（零依賴，直接呼叫 Turso HTTP API） |
+| `worker/src/api.js` | Worker 的 API 邏輯（零依賴，直接呼叫 Turso HTTP API） |
+| `worker/src/index.js` | Worker 進入點，額外把前端網頁一起打包 |
+| `worker/dist/worker-standalone.js` | 單一檔案版，可直接貼進 Cloudflare 後台部署 |
 | `worker/test/` | Worker 測試，對真實 SQLite 執行 |
 | `tools/dev-server.mjs` | 本機開發伺服器，**不需要任何雲端帳號** |
 | `app/` | Capacitor 包裝設定（上架 App Store 用） |
@@ -31,14 +39,18 @@ Turso 的 URL 與 Token 只存在 Worker 的環境變數，**永遠不會出現�
 
 ---
 
-## 馬上試（0 個帳號，30 秒）
+## 馬上試
+
+直接把 `index.html` 用瀏覽器打開，或部署到 GitHub Pages，就能開始用（本機模式）。
+
+想連著後端一起測（不需要雲端帳號）：
 
 ```bash
 node tools/dev-server.mjs --seed
 ```
 
 打開 <http://localhost:8787>，按右上角 ⚙ 填入 `http://localhost:8787/api` → 儲存。
-資料存在記憶體，關掉就消失，純粹用來看畫面與操作流程。
+資料存在記憶體，關掉就消失。
 
 ---
 
