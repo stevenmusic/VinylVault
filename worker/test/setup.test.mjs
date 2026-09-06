@@ -111,3 +111,19 @@ test('MusicBrainz 代理只放行查詢路徑', async () => {
   assert.equal(seen.length, 1);
   globalThis.fetch = inner;
 });
+
+test('MusicBrainz 連不上時回 502，不是 500', async () => {
+  const inner = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('musicbrainz.org')) throw new TypeError('fetch failed');
+    return inner(url, init);
+  };
+  const w = (await import('../src/api.js')).default;
+  const res = await w.fetch(new Request(
+    'https://api.test/mb?path=' + encodeURIComponent('/artist?query=x'),
+    { headers: { Origin: 'https://example.com' } }), env);
+  assert.equal(res.status, 502);
+  assert.match((await res.json()).error, /unreachable/i);
+  assert.equal(res.headers.get('Access-Control-Allow-Origin'), '*', '錯誤回應也要有 CORS，前端才讀得到');
+  globalThis.fetch = inner;
+});

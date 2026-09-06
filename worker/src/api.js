@@ -425,13 +425,19 @@ async function handle(request, env, assets) {
     }
     const upstream = 'https://musicbrainz.org/ws/2' + target +
       (target.includes('?') ? '&' : '?') + 'fmt=json';
-    const res = await fetch(upstream, {
-      headers: {
-        // MusicBrainz 要求帶上可辨識的 User-Agent
-        'User-Agent': 'VinylVault/1.0 (https://github.com/stevenmusic/VinylVault)',
-        'Accept': 'application/json',
-      },
-    });
+    let res;
+    try {
+      res = await fetch(upstream, {
+        headers: {
+          // MusicBrainz 要求帶上可辨識的 User-Agent
+          'User-Agent': 'VinylVault/1.0 (https://github.com/stevenmusic/VinylVault)',
+          'Accept': 'application/json',
+        },
+      });
+    } catch (e) {
+      // 上游連不上是對方的問題，不是這個 Worker 壞了 —— 回 502 前端才分得出來
+      throw new HttpError(502, 'MusicBrainz unreachable: ' + (e.message || 'network error'));
+    }
     const body = await res.text();
     return { raw: body, type: 'application/json; charset=utf-8', status: res.status, cors: true };
   }
