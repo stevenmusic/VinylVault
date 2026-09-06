@@ -81,9 +81,8 @@ Worker 是唯一碰得到 Turso 憑證的地方；瀏覽器只跟 Worker 說話�
 ### 2.1 部署
 
 ```bash
-cd worker
 npx wrangler login          # 會開瀏覽器授權
-npx wrangler deploy
+npx wrangler deploy         # 設定檔 wrangler.toml 在專案根目錄
 ```
 
 輸出會出現網址：
@@ -132,7 +131,7 @@ https://vinylvault-api.<你的帳號>.workers.dev/setup?seed=1
 
 1. <https://dash.cloudflare.com> → **Workers & Pages** → **Create** → **Create Worker**
 2. 命名 `vinylvault-api` → Deploy
-3. **Edit code**，把 `worker/src/index.js` 全文貼上取代預設內容 → Deploy
+3. **Edit code**，把 `worker/dist/worker-standalone.js` 全文貼上取代預設內容 → Deploy
 4. **Settings → Variables and Secrets** → 新增兩個 **Secret**：
    - `TURSO_DATABASE_URL`
    - `TURSO_AUTH_TOKEN`
@@ -157,7 +156,6 @@ npx wrangler secret put ALLOWED_ORIGINS
 ### 2.5 本機開發 Worker
 
 ```bash
-cd worker
 cp .dev.vars.example .dev.vars      # 填入自己的 Turso URL / token
 npx wrangler dev                    # → http://localhost:8787
 ```

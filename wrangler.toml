@@ -1,5 +1,5 @@
 name = "vinylvault-api"
-main = "src/index.js"
+main = "worker/src/index.js"
 compatibility_date = "2024-11-01"
 
 # 啟用 https://vinylvault-api.<你的子網域>.workers.dev 這個公開網址。
@@ -12,7 +12,7 @@ workers_dev = true
 #   npx wrangler secret put TURSO_AUTH_TOKEN
 #   npx wrangler secret put WRITE_TOKEN        # 選用：保護寫入端點
 #
-# 本機開發請用 worker/.dev.vars（已被 .gitignore 忽略）。
+# 本機開發請用專案根目錄的 .dev.vars（已被 .gitignore 忽略）。
 
 [vars]
 # 允許呼叫這個 API 的來源（逗號分隔）。留空或整行刪掉 = 允許所有來源。

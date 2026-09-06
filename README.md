@@ -31,6 +31,7 @@ Worker 本身也會把前端網頁一起送出來，所以部署完直接開 Wor
 | `config.js` | 前端設定：Worker 網址 |
 | `db/schema.sql` | Turso 資料表：`artists` / `albums` / `versions` / `tracks` |
 | `db/seed.sql` | 選用的範例資料 |
+| `wrangler.toml` | Worker 設定（放在根目錄，Cloudflare 的預設指令就能直接部署） |
 | `worker/src/api.js` | Worker 的 API 邏輯（零依賴，直接呼叫 Turso HTTP API） |
 | `worker/src/index.js` | Worker 進入點，額外把前端網頁一起打包 |
 | `worker/dist/worker-standalone.js` | 單一檔案版，可直接貼進 Cloudflare 後台部署 |
@@ -83,12 +84,13 @@ turso db tokens create vinylvault-db       # → 一長串 token
 ### 2. Cloudflare Worker
 
 ```bash
-cd worker
 npx wrangler login
 npx wrangler deploy
 npx wrangler secret put TURSO_DATABASE_URL   # 貼上第 1 步的 URL
 npx wrangler secret put TURSO_AUTH_TOKEN     # 貼上第 1 步的 token
 ```
+
+用 Cloudflare 網頁後台連接這個 repo 也可以，**建置與部署指令都用預設值即可**。
 
 部署後會得到 `https://vinylvault-api.<你的帳號>.workers.dev`。
 **直接用瀏覽器打開它就是 App 本體** —— Worker 會把前端網頁一起送出來，
